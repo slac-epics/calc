@@ -4,14 +4,17 @@
 
 TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 
+SUPPORT=/home/oxygen/MOONEY/epics/synAppsSVN/support
+-include $(TOP)/../configure/SUPPORT.$(EPICS_HOST_ARCH)
+
+# Need SSCAN module only to build the swait record (recDynLink library)
+# If you comment this definition out, the module will just decline to
+# build the swait record.
+SSCAN=$(SUPPORT)/sscan-2-7
+
 # EPICS_BASE usually appears last so other apps can override stuff:
-EPICS_BASE=/home/oxygen/MOONEY/epics/base-3.14.7
-
-# Need recDynLink
-SSCAN=/home/oxygen/MOONEY/epics/synApps_T202_E3_14_7_R5_1/support/sscan/2-5
-
-# Need genSubRecord
-GENSUB=/home/oxygen/MOONEY/epics/synApps_T202_E3_14_7_R5_1/support/genSub/1-6
+EPICS_BASE=/home/oxygen/MOONEY/epics/base-3.14.12.1
+-include $(TOP)/../configure/EPICS_BASE.$(EPICS_HOST_ARCH)
 
 #Capfast users may need the following definitions
 #CAPFAST_TEMPLATES=

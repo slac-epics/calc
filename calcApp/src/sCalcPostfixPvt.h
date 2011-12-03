@@ -31,6 +31,9 @@
  *                   sCalcPostfix.c), MAXV_VAL, MINV_VAL, FETCH_*, 3.14 ready
  *      03-03-06 tmm Added TR_ESC (apply dbTranslateEscape() to arg) and ESC
  *                   (apply epicsStrSnPrintEscaped() to arg).
+ *      10-23-06 tmm Added CRC16 and MODBUS functions, calculate modbus 16
+ *                   -bit CRC from string, and either return it, or append it.
+ *      10-24-06 tmm Added LRC, AMODBUS, XOR8 and ADD_XOR8 functions
  * 
  */
 
@@ -55,7 +58,7 @@
 #endif
 
 #define MAX_VARGS 20
-typedef union { long l[2]; double d; } DOUBLE_LONG;
+typedef union { epicsInt32 l[2]; epicsFloat64 d; } DOUBLE64_2LONG32;
 
 #define STACKSIZE 30
 #define LOCAL_STRING_SIZE 40
@@ -140,21 +143,32 @@ struct stackElement {
 #define		MINV_VAL	71
 #define		SUBLAST		72
 #define		TR_ESC		73
-#define		ESC		74
+#define		ESC			74
+#define		CRC16		75
+#define		MODBUS		76
+#define		LRC			77
+#define		AMODBUS		78
+#define		XOR8		79
+#define		ADD_XOR8	80
+#define		BIN_READ	81
+#define		BIN_WRITE	82
+#define		LEN			83
+#define		NORMAL_RNDM	84
+
 
 /* NOTE: FETCH_A .. FETCH_L must be contiguous and in alphabetical order */
-#define		FETCH_A		75
-#define		FETCH_B		76
-#define		FETCH_C		77
-#define		FETCH_D		78
-#define		FETCH_E		79
-#define		FETCH_F		80
-#define		FETCH_G		81
-#define		FETCH_H		82
-#define		FETCH_I		83
-#define		FETCH_J		84
-#define		FETCH_K		85
-#define		FETCH_L		86
+#define		FETCH_A		90
+#define		FETCH_B		91
+#define		FETCH_C		92
+#define		FETCH_D		93
+#define		FETCH_E		94
+#define		FETCH_F		95
+#define		FETCH_G		96
+#define		FETCH_H		97
+#define		FETCH_I		98
+#define		FETCH_J		99
+#define		FETCH_K		100
+#define		FETCH_L		101
 
 #define NO_STRING		125
 #define USES_STRING		126

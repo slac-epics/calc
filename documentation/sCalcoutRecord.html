@@ -52,6 +52,13 @@ These fields indicate whether or not the specified PV was found and a link
 to it established. See <A HREF="#MARKER-9-2">Section 6, <I>Operator Display
 Parameters</I></A> for an explanation of these fields.
 
+<P>From most types of PV's, the sCalcout record's string input links fetch data as
+strings, and depend on EPICS to convert a PV's native value to string.  But when an
+sCalcout record's string input link names a PV whose data type is an array of
+DBF_CHAR or DBF_UCHAR, the record fetches up to 39 array elements from the array in
+their native form, translates the result using epicsStrSnPrintEscaped(), and
+truncates the result to fit into a 40-character string.
+
 <P>&nbsp;See the EPICS Record Reference Manual for information on how to specify database links.
 <TABLE BORDER NOSAVE >
 <TR>
@@ -164,7 +171,13 @@ Parameters</I></A> for an explanation of these fields.
 Like the Calc record, the sCalcout record has a CALC field into which
 you can enter an expression for the record to evaluate when it processes.  The resulting numeric value will be placed in the VAL field, and the resulting string value will be placed in the SVAL field.  VAL can then be used by the OOPT field (see <A HREF="#MARKER-9-1">Section 5, <I>Output Parameters</I></A>) to determine whether or not to write to the output link or post an output event. Either VAL and SVAL can also be written to the output link.  (If you elect to write an output value, the record will choose between VAL and SVAL, depending on the data type of the field at the other end of the output link.)
 
-<P>&nbsp;The CALC expression is actually converted to opcodes and stored in Reverse Polish Notation in the RPCL field.  It is this expression which is ctually used to calculate VAL.  The Reverse Polish expression is evaluated more efficiently at run-time than an infix expression would be.  When CALC is  changed at run-time, the record-support routine <code>special()</code> will call a function to check it, and convert it to Reverse Polish Notation.
+<P>&nbsp;The CALC expression is actually converted to opcodes and stored in
+postfix notation in the RPCL field.  It is this expression which is actually
+used to calculate VAL.  The postfix expression is evaluated more efficiently at
+run-time than an infix expression would be.  When CALC is  changed at run-time,
+the record-support routine <code>special()</code> will call a function to check
+it, and convert it to postfix notation.
+
 <BR>The record also has a second set of calculation-related fields described  in <A HREF="#MARKER-9-1">Section 5, <I>Output Parameters.</I></A>
 
 <BR>&nbsp;
@@ -249,13 +262,13 @@ of a string variable.
 <H2>
 4.1. Operands</H2>
 The expression can use the values retrieved from the input links as operands,
-though constants can be used as operands too. These values retrieved from
+though constants can also be used as operands. These values retrieved from
 the input links are stored in the A-L, and AA-LL fields. The values to
 be used in the expression are simply referenced by the field name. For
 example, the value obtained from the INPA link is stored in the field A,
 and the value obtained from INPB is stored in field B. The field names
 can be included in the expression which will operate on their respective
-values, as in A+B.
+values, as in "A+B".
 
 <P>
 <TABLE BORDER>
@@ -746,11 +759,27 @@ to evaluate expressions).  All but <code>RNDM</code> are constants.
 <P>
 <A NAME="HEADING14-69"></A>
 <H2>
-4.7. Parentheses and Comma</H2>
-The open and close parentheses are supported. Nested parenthesis are supported.
+4.7. Special Characters </H2>
+<P>Parentheses, and nested parentheses are permitted (sometimes required) in expressions.
 
-<BR>The comma is supported when used to separate the arguments of a binary
-function.
+<P>The comma is required to separate the arguments of a binary function.
+
+<P>Quotes of two kinds (" and ') are permitted to indicate the beginning and end of a string expression. 
+The expression parser treats these quote characters in exactly the same way, so you can use pairs of
+either.  Using one kind of quote allows you to include the other kind in a string.  Note that string calc
+expressions defined in an EPICS database must use the ' character to delimit embedded strings, because
+database tools will use " to delimit the entire expression.  
+
+<P>Escape sequences understood by the Epics routines dbTranslateEscape() and
+epicsStrSnEscaped() are permitted in strings handled by the sCalcout record,
+and the sCalc engine supplies functions that encode and decode escaped
+strings.  Here's the current escape list:<br>
+<code> \a \b \f \n \r \t \v \\ \? \' \" \000 \xhh</code><br>
+
+<P>Note that '\000' represents an octal number, and may include one, two, or
+three octal digits.  \xhh is a two-digit hexadecimal number.
+
+<P>See the Application Developer's Guide for more on this topic.
 
 <P><A NAME="HEADING14-72"></A>
 <H2>
@@ -883,7 +912,71 @@ to format string (two-argument function) (NOTE: '$S' is a synonym for SSCANF)
 <td><code>SSCANF('V=1.25', "%*2c%lf") -> 1.25</code>
 
 <tr>
-<td align=center valign=top>TR_ESC
+<td align=center valign=top><font color="blue">READ</font>
+<td>Read binary data.  This function is similar in form to SSCANF, and is roughly
+analogous in function, but it operates on binary data.  The first argument is
+the string from which data is to be copied.  If this string contains any unprintable
+characters, they will have been converted to escape sequences by the software that
+transported them to this point.  READ() converts this string to a raw binary array,
+using the EPICS function dbTranslateEscape(), copies bytes from that array
+into a temporary numeric variable, whose type depends on the format string,
+converts the result to double, and returns this value.
+<br>(NOTE: '$R' is a synonym for READ)
+
+<P>The format string is similar to that of the SSCANF function, but only the
+following subset of format indicators is supported:
+<table border>
+<tr><th>format<th>resulting behavior
+<tr><td>%i %d<td>copy four bytes to a long signed integer
+<tr><td>%hi %hd<td>copy two bytes to a short signed integer
+<tr><td>%o %u %x %X<td>copy four bytes to a long unsigned integer
+<tr><td>%ho %hu %hx %hX<td>copy two bytes to a short unsigned integer
+<tr><td>%e %E %f %g %G<td>copy four bytes to a float
+<tr><td>%le %lE %lf %lg %lG<td>copy eight bytes to a double
+<tr><td>%c<td>copy one byte to a signed character
+<tr><td>%*<td>suppress assignment to next conversion indicator.  Only one '%*'
+is honored. <br>
+<em>This is the only reliable way to skip past a specified number of bytes in a
+binary input string.  For a non-escaped string, something like '<code>aa[3,5]</code>'
+would have worked as well.  But if the string <code>aa</code> might include
+escape sequences, character offsets in the escaped string will depend on the
+values of the characters, because printable characters are not escaped.</em>
+</table>
+
+<BR>Allowed format indicators: <B>%*cdeEfgGhilouxX</B>
+<BR>Disallowed indicators: <B>$npw[s</B>
+<td><code>READ('\x01\x02', "%hu") -> 258</code><br><br>
+<code>READ('\x01\x02', "%*c%hu") -> 2</code><br>
+<tr>
+<td align=center valign=top><font color="blue">WRITE</font>
+<td>Write binary data.  This function is similar in form to PRINTF, and is roughly
+analogous in function, but it operates on binary data.  The first argument is the
+format string; the second is the data to be written.  After the data have been
+written to a buffer, the buffer is processed by epicsStrSnEscaped() and returned.
+<br>(NOTE: '$W' is a synonym for WRITE)
+
+<P>The format string is similar to that of the PRINTF function, but only the
+following subset of format indicators is supported:
+<table border>
+<tr><th>format<th>resulting behavior
+<tr><td>%i %d<td>convert to a long signed integer and write four bytes
+<tr><td>%hi %hd<td>convert to to a short signed integer and copy two bytes
+<tr><td>%o %u %x %X<td>convert to a long unsigned integer and copy four bytes
+<tr><td>%ho %hu %hx %hX<td>convert to a short unsigned integer and copy two bytes 
+<tr><td>%e %E %f %g %G<td>convert to a float and copy four bytes 
+<tr><td>%le %lE %lf %lg %lG<td>convert to a double and copy eight bytes 
+<tr><td>%c<td>convert to a signed character and copy one byte
+</table>
+
+<BR>Allowed format indicators: <B>%cdeEfgGhilouxX</B>
+<BR>Disallowed indicators: <B>$npw[s</B>
+<td><code>WRITE('%hd', 1250) -> '\004\342'</code>
+
+
+
+
+<tr>
+<td align=center valign=top><font color="blue">TR_ESC</font>
 <td>Translate escape sequences into the characters they represent
 (one-argument function).   (NOTE: '$T' is a synonym for TR_ESC.)
 <BR>TR_ESC() applies dbTranslateEscape() to its argument. 
@@ -892,7 +985,7 @@ to format string (two-argument function) (NOTE: '$S' is a synonym for SSCANF)
 <td><code>TR_ESC("a\x62c") -> 'abc'</code>
 
 <tr>
-<td align=center valign=top>ESC
+<td align=center valign=top><font color="blue">ESC</font>
 <td>Translate escape characters into equivalent escape sequences.
 (one-argument function) (NOTE: '$E' is a synonym for ESC)
 <BR>ESC() applies epicsStrSnEscaped() to its argument. 
@@ -901,6 +994,48 @@ to format string (two-argument function) (NOTE: '$S' is a synonym for SSCANF)
 If there is no null chaacter, the string is assumed to be 40
 characters long.
 <td><code>ESC("a&lt;return&gt;c") -> 'a\rc'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">CRC16</font>
+<td>Calculate Modbus/RTU 16-bit CRC and return it as an escaped string. 
+<td><code>CRC16('\x01\x03') -> '\x01\x03\x40\x21'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">MODBUS</font>
+<td>Calculate Modbus/RTU 16-bit CRC and append it, as an escaped string,
+to the argument. 
+<td><code>CRC16('\x01\x03') -> '\x40\x21'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">LRC</font>
+<td>Calculate Modbus/ASCII 8-bit LRC and return it as an escaped string. 
+<td><code>LRC('\x01\x03') -> '\xfc'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">AMODBUS</font>
+<td>Calculate Modbus/ASCII 8-bit LRC and append it, as an escaped string,
+to the argument.  Note that this doesn't do everything needed for an actual
+device.  The string is supposed to be converted to binary, have its LRC
+appended, and ':' prepended.  Then the whole thing then gets converted to
+ASCII characters. 
+<td><code>AMODBUS('\x01\x03') -> '\x01\x03\xfc'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">XOR8</font>
+<td>Calculate 8-bit XOR checksum and return it as an escaped string. 
+<td><code>XOR8('\x01\x03') -> '\x02'</code>
+
+<tr>
+<td align=center valign=top><font color="blue">ADD_XOR8</font>
+<td>Calculate 8-bit XOR checksum and append it, as an escaped string,
+to the argument. 
+<td><code>ADD_XOR8('\x01\x03') -> '\x01\x03\x02'</code>
+
+<tr>
+<td align=center valign=top>LEN
+<td>Return length of string argument. If arg is not a string, it will be converted
+to string.
+<td><code>LEN('abc') -> 3</code>
 
 <tr>
 <td align=center valign=top>[
@@ -924,6 +1059,10 @@ characters long.
 <td>String indicator
 <td><code>'abc'</code>
 
+<tr>
+<td valign=top colspan=3> <font color="blue">Functions and operators rendered in
+this color are experimental.  The names or implementations may change in a future
+version of this software.</font>
 </table>
 
 <A NAME="HEADING14-75"></A>
@@ -2201,7 +2340,7 @@ the OUT link, and post the event in OEVT (if non-zero).</DD>
 
 <DT><A HREF="#HEADING14-60"><B>4.6. </B>- Bitwise Operators</A></DT>
 
-<DT><A HREF="#HEADING14-69"><B>4.7. </B>- Parentheses and Comma</A></DT>
+<DT><A HREF="#HEADING14-69"><B>4.7. </B>- Special Characters</A></DT>
 
 <DT><A HREF="#HEADING14-72"><B>4.8. </B>- Conditional Expression</A></DT>
 

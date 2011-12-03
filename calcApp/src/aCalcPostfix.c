@@ -163,6 +163,13 @@ element    i_s_p i_c_p type_element     internal_rep */
 {"AVG",    10,    11,    UNARY_OPERATOR,  AVERAGE},     /* array average */
 {"STD",    10,    11,    UNARY_OPERATOR,  STD_DEV},     /* standard deviation */
 {"FWHM",   10,    11,    UNARY_OPERATOR,  FWHM},        /* full width at half max */
+{"SMOO",   10,    11,    UNARY_OPERATOR,  SMOOTH},      /* smooth */
+{"NSMOO",  10,    11,    UNARY_OPERATOR,  NSMOOTH},     /* smooth (npts)*/
+{"DERIV",  10,    11,    UNARY_OPERATOR,  DERIV},       /* derivative */
+{"NDERIV", 10,    11,    UNARY_OPERATOR,  NDERIV},      /* derivative (npts)*/
+{"SUM",    10,    11,    UNARY_OPERATOR,  ARRSUM},      /* sum over array */
+{"FITPOLY",10,    11,    UNARY_OPERATOR,  FITPOLY},     /* polynomial fit */
+{"FITMPOLY",10,    11,    UNARY_OPERATOR,  FITMPOLY},     /* polynomial fit */
 {"!=",      4,     4,    BINARY_OPERATOR, NOT_EQ},      /* not equal */
 {"!",      10,    11,    UNARY_OPERATOR,  REL_NOT},     /* not */
 {"~",      10,    11,    UNARY_OPERATOR,  BIT_NOT},     /* bitwise not */
@@ -230,14 +237,14 @@ element    i_s_p i_c_p type_element     internal_rep */
 
 /*
  * Element-table entry for "fetch" operation.  This element is used for all
- * named variables.  Currently, letters A-Z (double) and AA-ZZ (string) are
+ * named variables.  Currently, letters A-Z (double) and AA-ZZ (array) are
  * allowed.  Lower and upper case letters mean the same thing.
  */
 static struct expression_element	fetch_element = {
 "A",		0,	0,	OPERAND,	FETCH,   /* fetch var */
 };
 
-static struct expression_element	fetch_string_element = {
+static struct expression_element	fetch_array_element = {
 "AA",		0,	0,	OPERAND,	AFETCH,   /* fetch var */
 };
 
@@ -269,7 +276,7 @@ long aCalcCheck(char *post, int forks_checked, int dir_mask)
 	top = ps = &stack[1];
 	DEC(ps);  /* Expression handler assumes ps is pointing to a filled element */
 
-	/* string expressions and values handled */
+	/* array expressions and values handled */
 	while (*post != END_STACK) {
 #if DEBUG
 		if (aCalcPostfixDebug) printf("aCalcCheck: %s *post=%d\n", debug_prefix, *post);
@@ -290,7 +297,7 @@ long aCalcCheck(char *post, int forks_checked, int dir_mask)
 			*ps = 0;
 			break;
 
-		case AFETCH:	/* fetch from string variable */
+		case AFETCH:	/* fetch from array variable */
 			INC(ps);
 			++post;
 			*ps=0;
@@ -302,24 +309,27 @@ long aCalcCheck(char *post, int forks_checked, int dir_mask)
 			*ps = 0;
 			break;
 
+		/* two-argument functions/operators */
 		case ADD:			case SUB:		case MAX_VAL:	case MIN_VAL:
 		case MULT:			case DIV:		case EXPON:		case MODULO:
 		case REL_OR:		case REL_AND:	case BIT_OR:	case BIT_AND:
 		case BIT_EXCL_OR:	case GR_OR_EQ:	case GR_THAN:	case LESS_OR_EQ:
 		case LESS_THAN:		case NOT_EQ:	case EQUAL:		case RIGHT_SHIFT:
 		case LEFT_SHIFT:	case ATAN2:		case MAXFUNC:	case MINFUNC:
+		case NSMOOTH:		case NDERIV:	case FITMPOLY:
 			DEC(ps);
 			*ps = 0;
 			break;
 
-	
+		/* one-argument functions/operators */
 		case ABS_VAL:	case UNARY_NEG:	case SQU_RT:	case EXP:
 		case LOG_10:	case LOG_E:		case ACOS:		case ASIN:
 		case ATAN:		case COS:		case SIN:		case TAN:
 		case COSH:		case SINH:		case TANH:		case CEIL:
 		case FLOOR:		case NINT:		case REL_NOT:	case BIT_NOT:
 		case A_FETCH:	case TO_DOUBLE: case AMAX:		case AMIN:
-		case AVERAGE:	case STD_DEV:
+		case AVERAGE:	case STD_DEV:	case FWHM:		case SMOOTH:
+		case DERIV:		case ARRSUM:	case FITPOLY:
 			*ps = 0;
 			break;
 
@@ -417,8 +427,8 @@ long aCalcCheck(char *post, int forks_checked, int dir_mask)
 #if DEBUG
 	if (ps != top) {
 		if (aCalcPostfixDebug>=10) {
-			printf("aCalcCheck: stack error: top=%p, ps=%p, ps-top=%d, got_if=%d\n",
-				(void *)top, (void *)ps, ps-top, got_if);
+			printf("aCalcCheck: stack error: top=%p, ps=%p, ps-top=%ld, got_if=%d\n",
+				(void *)top, (void *)ps, (long)(ps-top), got_if);
 		}
 	}
 	if (aCalcPostfixDebug) printf("aCalcCheck: normal exit\n");
@@ -443,7 +453,7 @@ static int find_element(pbuffer, pelement, pno_bytes, parg)
 
  	/* compare the string to each element in the element table */
  	*pelement = &elements[0];
- 	while ((*pelement)->element[0] != NULL){
+ 	while ((*pelement)->element[0] != 0){
  		if (epicsStrnCaseCmp(pbuffer,(*pelement)->element, strlen((*pelement)->element)) == 0){
  			*pno_bytes += strlen((*pelement)->element);
  			return(TRUE);
@@ -457,9 +467,9 @@ static int find_element(pbuffer, pelement, pno_bytes, parg)
 		*pelement = &fetch_element; /* fetch means "variable reference" (fetch or store) */
 		*parg = *pbuffer - (isupper((int)*pbuffer) ? 'A' : 'a');
 		*pno_bytes += 1;
-		/* string variables: ["aa" - "zz"], numbered 1-26 */
+		/* array variables: ["aa" - "zz"], numbered 1-26 */
 		if (pbuffer[1] == pbuffer[0]) {
-			*pelement = &fetch_string_element;
+			*pelement = &fetch_array_element;
 			*pno_bytes += 1;
 		}
  		return(TRUE);
@@ -482,13 +492,13 @@ register short	*pno_bytes, *parg;
 {
 
 	/* get the next expression element from the infix expression */
-	if (*pinfix == NULL) return(END);
+	if (*pinfix == 0) return(END);
 	*pno_bytes = 0;
 	while (*pinfix == 0x20){
 		*pno_bytes += 1;
 		pinfix++;
 	}
-	if (*pinfix == NULL) return(END);
+	if (*pinfix == 0) return(END);
 	if (!find_element(pinfix, pelement, pno_bytes, parg))
 		return(UNKNOWN_ELEMENT);
 #if DEBUG
@@ -564,7 +574,7 @@ long epicsShareAPI aCalcPostfix(char *pinfix, char *ppostfix, short *perror)
 				*ppostfix++ = pelement->code;
 			}
 
-			/* if this is a string variable reference, append variable number */
+			/* if this is an array variable reference, append variable number */
 			if (pelement->code == (char)AFETCH) {
 				*ppostfix++ = arg;
 			}

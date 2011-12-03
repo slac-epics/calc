@@ -1,4 +1,4 @@
-/* calcPostfix.c,v 1.1.1.1 2001/07/03 20:05:23 sluiter Exp
+/* $Id: calcPostfix.c,v 1.1.1.1 2001-07-03 20:05:23 sluiter Exp $
  * Subroutines used to convert an infix expression to a postfix expression
  *
  *      Author:          Bob Dalesio

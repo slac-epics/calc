@@ -46,21 +46,24 @@
 #include <vxWorks.h>
 #endif
 
-#include	<stdlib.h>
-#include	<stdio.h>
-#include	<string.h>
-#include	<math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
 
-#include	"dbDefs.h"
-#include	"cvtFast.h"
-#include	"epicsString.h"
+#include "dbDefs.h"
+#include "cvtFast.h"
+#include "epicsString.h"
 #define epicsExportSharedSymbols
-#include	"aCalcPostfix.h"
-#include	"aCalcPostfixPvt.h"
+#include "aCalcPostfix.h"
+#include "aCalcPostfixPvt.h"
 #include <epicsExport.h>
 #include <freeList.h>
 
-static double	local_random();
+/* Note value much larger than this breaks MEDM's plot */
+#define	myMAXFLOAT	((float)1e+35)
+
+static double local_random();
 
 #define myNINT(a) ((int)((a) >= 0 ? (a)+0.5 : (a)-0.5))
 #ifndef PI
@@ -68,6 +71,12 @@ static double	local_random();
 #endif
 #define MAX(a,b) (a)>(b)?(a):(b)
 #define MIN(a,b) (a)<(b)?(a):(b)
+#define SMALL 1.e-9
+
+extern int deriv(double *x, double *y, int n, double *d);
+extern int nderiv(double *x, double *y, int n, double *d, int m, double *work);
+int fitpoly(double *x, double *y, int n,
+	double *a0, double *a1, double *a2, double *mask);
 
 #define DEBUG 1
 volatile int aCalcPerformDebug = 0;
@@ -102,14 +111,23 @@ int aCalcStackLW = 0;	/* low-water mark */
 /* convert double-valued stack element to array */
 #define to_array(ps) {										\
 	int ii;													\
-	(ps)->a = &((ps)->local_array[0]);						\
+	(ps)->a = &((ps)->array[0]);						\
 	if (isnan((ps)->d))										\
 		for(ii=0; ii<arraySize; ii++) (ps)->a[ii]=0.;		\
 	else													\
 		for(ii=0; ii<arraySize; ii++) (ps)->a[ii]=ps->d;	\
 }
 
-static struct stackElement stack[STACKSIZE];
+volatile int aCalcArraySize = 1000;
+epicsExportAddress(int, aCalcArraySize);
+struct stackElement {
+	double d;
+	double *a;
+	double *array;
+};
+/* static struct stackElement stack[STACKSIZE];*/
+static struct stackElement *stack = 0;
+
 static int stackInUse=0;
 
 long epicsShareAPI 
@@ -119,28 +137,64 @@ long epicsShareAPI
 
 {
 	struct stackElement *top;
-	struct stackElement *ps, *ps1, *ps2;
+	struct stackElement *ps, *ps1, *ps2, *ps3;
 	char				*s, currSymbol;
-	int					i, j, k, found;
-	double				d, e;
+	int					i, j, k, found, status;
+	double				d, e, f;
 	short 				got_if;
 
 	if (aCalcPerformDebug>=10) {
 		printf("aCalcPerform:array-arg addresses: %p %p...\n", (void *)pp_aArg[0], (void *)pp_aArg[1]);
 	}
 
+	if (stack == NULL) {
+		stack = malloc(STACKSIZE * sizeof(struct stackElement));
+		if (stack == NULL) {
+			printf("aCalcPerform: Can't allocate stack.\n");
+			return(-1);
+		}
+		/* If aCalcArraySize wasn't specified, use arraySize from first call. */
+		if (aCalcArraySize < arraySize) aCalcArraySize = arraySize;
+		for (i=0; i<STACKSIZE; i++) {
+			stack[i].array = (double *)malloc(aCalcArraySize * sizeof(double));
+			if (stack[i].array == NULL) {
+				printf("aCalcPerform: Can't allocate array.\n");
+				if (i>0) {
+					for (i--;i>=0; i--) free(stack[i].array);
+					free(stack);
+				}
+				return(-1);
+			}
+		}
+#if 0
+		printf("aCalcPerform: stack=%p\n", stack);
+		printf("aCalcPerform: &(stack[0])=%p\n", &(stack[0]));
+		printf("aCalcPerform: &(stack[0].d)=%p\n", &(stack[0].d));
+		printf("aCalcPerform: &(stack[0].a)=%p\n", &(stack[0].a));
+		printf("aCalcPerform: &(stack[0].array)=%p\n", &(stack[0].array));
+		printf("aCalcPerform: &(stack[0].array[0])=%p\n", &(stack[0].array[0]));
+
+		printf("aCalcPerform: &(stack[1])=%p\n", &(stack[1]));
+		printf("aCalcPerform: &(stack[1].d)=%p\n", &(stack[1].d));
+		printf("aCalcPerform: &(stack[1].a)=%p\n", &(stack[1].a));
+		printf("aCalcPerform: &(stack[1].array)=%p\n", &(stack[1].array));
+		printf("aCalcPerform: &(stack[1].array[1])=%p\n", &(stack[1].array[1]));
+#endif
+	}
+
 	if (stackInUse) {
 		printf("aCalcPerform: stack in use.  Nothing done\n");
+		return(-1);
 	}
 	stackInUse = 1;
 
 	for (i=0; i<STACKSIZE; i++) {
 		stack[i].d = 0.;
 		stack[i].a = NULL;
-		for (j=0; j<ARRAY_SIZE; j++) stack[i].local_array[j] = 0.;
+		for (j=0; j<aCalcArraySize; j++) stack[i].array[j] = 0.;
 	}
-	if (arraySize > ARRAY_SIZE) {
-		printf("aCalcPerform: compiled for <= %d-element arrays\n", ARRAY_SIZE);
+	if (arraySize > aCalcArraySize) {
+		printf("aCalcPerform: I've only allocated for %d-element arrays\n", aCalcArraySize);
 		stackInUse = 0;
 		return(-1);
 	}
@@ -188,8 +242,10 @@ long epicsShareAPI
 			if (i%4 == 3) printf("\n");
 		}
 		for (i=0; i<num_aArgs; i++) {
-			printf("%c%c=[%f %f %f...]\n",
-				'a'+i, 'a'+i, pp_aArg[i][0], pp_aArg[i][1], pp_aArg[i][2]);
+			if (pp_aArg[i]) {
+				printf("%c%c=[%f %f %f...]\n",
+					'a'+i, 'a'+i, pp_aArg[i][0], pp_aArg[i][1], pp_aArg[i][2]);
+			}
 		}
 	}
 #endif
@@ -205,7 +261,8 @@ long epicsShareAPI
 	ps--;  /* Expression handler assumes ps is pointing to a filled element */
 	ps->d = 1.23456; ps->a = NULL;	/* telltale */
 
-	while (*post != END_STACK) {
+	status = 0;
+	while ((*post != END_STACK) && (status == 0)) {
 
 		currSymbol = *post;
 		if (aCalcPerformDebug>=20) printf("aCalcPerform: currSymbol=%d\n", currSymbol);
@@ -239,11 +296,13 @@ long epicsShareAPI
 		case AFETCH:	/* fetch from array variable */
 			INC(ps);
 			++post;
-			ps->a = &(ps->local_array[0]);
+			ps->a = &(ps->array[0]);
 			ps->a[0] = 0.;
 			if (*post < num_aArgs) {
-				for (i=0; i<arraySize; i++) {
-					ps->a[i] = pp_aArg[(int)*post][i];
+				if (pp_aArg[(int)*post]) {
+					for (i=0; i<arraySize; i++) ps->a[i] = pp_aArg[(int)*post][i];
+				} else {
+					for (i=0; i<arraySize; i++) ps->a[i] = 0.0;
 				}
 				if (aCalcPerformDebug>=20)
 					printf("aCalcPerform:fetch array %d = [%f %f...]\n",
@@ -288,12 +347,46 @@ long epicsShareAPI
 
 		case CONST_IX:
 			INC(ps);
-			ps->a = &(ps->local_array[0]);
+			ps->a = &(ps->array[0]);
 			for (i=0; i<arraySize; i++) {
 				ps->a[i] = i;
 			}
 			break;
 
+		case NSMOOTH:
+			checkStackElement(ps, *post);
+			j = ps->d; /* get npts (ignore it for now, because NSMOOTH is not implemented yet) */
+			DEC(ps);
+			checkStackElement(ps, *post);
+			for(k=0; k<j; k++) {
+				d = ps->a[0]; e = ps->a[1]; f=ps->a[2];
+				for (i=2; i<arraySize-2; i++) {
+					ps->a[i] = d/16 + e/4 + 3*f/8 + ps->a[i+1]/4 + ps->a[i+2]/16;
+					d=e; e=f; f=ps->a[i+1];
+				}
+			}
+			break;
+
+		case NDERIV:
+			checkStackElement(ps, *post);
+			toDouble(ps);
+			j = MIN((arraySize-1)/2, ps->d);  /* points on either side of value for fit */
+			DEC(ps);
+			checkStackElement(ps, *post);
+			toArray(ps);
+			ps1 = ps; /* y array */
+			INC(ps); ps->a = &(ps->array[0]);
+			ps2 = ps; /* place in which to make an x array */
+			for (i=0; i<arraySize; i++) {ps2->a[i] = i;}
+			INC(ps); ps->a = &(ps->array[0]); /* place in which to calc derivative */
+			ps3 = ps;
+			INC(ps); ps->a = &(ps->array[0]); /* workspace for nderiv */
+			status = nderiv(ps2->a, ps1->a, arraySize, ps3->a, j, ps->a);
+			for (i=0; i<arraySize; i++) {ps1->a[i] = ps3->a[i];}
+			DEC(ps); DEC(ps); DEC(ps);
+			break;
+
+		/* normal two-argument functions/operators (either arg can be array or scalar) */
 		case ADD:
 		case SUB:
 		case MULT:
@@ -301,7 +394,7 @@ long epicsShareAPI
 		case MODULO:
 		case MAXFUNC:
 		case MINFUNC:
-
+		
 			checkStackElement(ps, *post);
 			ps1 = ps;
 			DEC(ps);
@@ -315,14 +408,20 @@ long epicsShareAPI
 				case MULT: for (i=0; i<arraySize; i++) {ps->a[i] *= ps1->a[i];} break;
 				case DIV:
 					for (i=0; i<arraySize; i++) {
-						if (ps1->a[i]==0) {stackInUse=0; return(-1);}
-						ps->a[i] /= ps1->a[i];
+						if (ps1->a[i]==0) {
+							ps->a[i] = myMAXFLOAT;
+						} else {
+							ps->a[i] /= ps1->a[i];
+						}
 					}
 					break;
 				case MODULO:
 					for (i=0; i<arraySize; i++) {
-						if ((int)ps1->a[i] == 0) {stackInUse=0; return(-1);}
-						ps->a[i] = (double)((int)ps->a[i] % (int)ps1->a[i]);
+						if ((int)ps1->a[i] == 0) {
+							ps->a[i] = myMAXFLOAT;
+						} else {
+							ps->a[i] = (double)((int)ps->a[i] % (int)ps1->a[i]);
+						}
 					}
 					break;
 				case MAXFUNC: for (i=0; i<arraySize; i++) {if (ps1->a[i] > ps->a[i]) {ps->a[i] = ps1->a[i];}} break;
@@ -339,11 +438,19 @@ long epicsShareAPI
 				case SUB: ps->d -= ps1->d; break;
 				case MULT: ps->d *= ps1->d; break;
 				case DIV:
-					if (ps1->d == 0) {stackInUse=0; return(-1);}
-					ps->d = ps->d / ps1->d; break;
+					if (ps1->d == 0) {
+						ps->d = myMAXFLOAT;
+					} else {
+						ps->d = ps->d / ps1->d;
+					}
+					break;
 				case MODULO:
-					if ((int)ps1->d == 0) {stackInUse=0; return(-1);}
-					ps->d = (double)((int)ps->d % (int)ps1->d); break;
+					if ((int)ps1->d == 0) {
+						ps->d = myMAXFLOAT;
+					} else {
+						ps->d = (double)((int)ps->d % (int)ps1->d);
+					}
+					break;
 				case MAXFUNC: if (ps1->d > ps->d) ps->d = ps1->d; break;
 				case MINFUNC: if (ps1->d < ps->d) ps->d = ps1->d; break;
 				}
@@ -354,7 +461,7 @@ long epicsShareAPI
 			/* if false condition then skip true expression */
 			checkStackElement(ps, *post);
 			toDouble(ps);
-			if (aCalcPerformDebug>=20) {printf("aCalcPerform:cond_if: ps->d=%f, ps-top=%d\n", ps->d, (int)ps-(int)top);}
+			if (aCalcPerformDebug>=20) {printf("aCalcPerform:cond_if: ps->d=%f, ps-top=%ld\n", ps->d, (long)(ps-top));}
 			if (ps->d == 0.0) {
 				/* skip to matching COND_ELSE */
 				for (got_if=1; got_if>0 && post[1] != END_STACK; ++post) {
@@ -427,29 +534,52 @@ long epicsShareAPI
 		case AVERAGE:
 		case STD_DEV:
 		case FWHM:
+		case SMOOTH:
+		case DERIV:
+		case ARRSUM:
+		case FITPOLY:
+		case FITMPOLY:
 			checkStackElement(ps, *post);
 			if (isArray(ps)) {
 				switch (currSymbol) {
 				case ABS_VAL: for (i=0; i<arraySize; i++) {if (ps->a[i] < 0) ps->a[i] *= -1;} break;
 				case UNARY_NEG: for (i=0; i<arraySize; i++) {ps->a[i] *= -1;} break;
 				case SQU_RT:
+					status = 0;
 					for (i=0; i<arraySize; i++) {
-						if (ps->a[i] < 0) {stackInUse=0; return(-1);}
-						ps->a[i] = sqrt(ps->a[i]);
+						if (ps->a[i] < 0) {
+							ps->a[i] = 0;
+							status = -1;
+						} else {
+							ps->a[i] = sqrt(ps->a[i]);
+						}
 					}
+					if (status)	printf("aCalcPerform: attempt to take sqrt of negative number\n");
 					break;
 				case EXP: for (i=0; i<arraySize; i++) {ps->a[i] = exp(ps->a[i]);} break;
 				case LOG_10:
+					status = 0;
 					for (i=0; i<arraySize; i++) {
-						if (ps->a[i] < 0) {stackInUse=0; return(-1);}
-						ps->a[i] = log10(ps->a[i]);
+						if (ps->a[i] < 0) {
+							ps->a[i] = 0;
+							status = -1;
+						} else {
+							ps->a[i] = log10(ps->a[i]);
+						}
 					}
+					if (status) printf("aCalcPerform: attempt to take log of negative number\n");
 					break;
 				case LOG_E:
+					status = 0;
 					for (i=0; i<arraySize; i++) {
-						if (ps->a[i] < 0) {stackInUse=0; return(-1);}
-						ps->a[i] = log(ps->a[i]);
+						if (ps->a[i] < 0)  {
+							ps->a[i] = 0;
+							status = -1;
+						} else {
+							ps->a[i] = log(ps->a[i]);
+						}
 					}
+					if (status) printf("aCalcPerform: attempt to take log of negative number\n");
 					break;
 				case ACOS: for (i=0; i<arraySize; i++) {ps->a[i] = acos(ps->a[i]);} break;
 				case ASIN: for (i=0; i<arraySize; i++) {ps->a[i] = asin(ps->a[i]);} break;
@@ -462,7 +592,10 @@ long epicsShareAPI
 				case TANH: for (i=0; i<arraySize; i++) {ps->a[i] = tanh(ps->a[i]);} break;
 				case CEIL: for (i=0; i<arraySize; i++) {ps->a[i] = ceil(ps->a[i]);} break;
 				case FLOOR: for (i=0; i<arraySize; i++) {ps->a[i] = floor(ps->a[i]);} break;
-				case NINT: for (i=0; i<arraySize; i++) {ps->a[i] = (double)(long)(ps->a[i] >= 0 ? ps->a[i]+0.5 : ps->a[i]-0.5);;} break;
+				case NINT: for (i=0; i<arraySize; i++) {
+								ps->a[i] = (double)(long)(ps->a[i] >= 0 ? ps->a[i]+0.5 : ps->a[i]-0.5);
+							}
+							break;
 				case AMAX:
 					for (i=1, d=ps->a[0]; i<arraySize; i++) {if (ps->a[i]>d) d = ps->a[i];}
 					toDouble(ps);
@@ -528,38 +661,106 @@ long epicsShareAPI
 					toDouble(ps);
 					ps->d = e-d;
 					break;
+				case SMOOTH:
+					d = ps->a[0]; e = ps->a[1]; f=ps->a[2];
+					for (i=2; i<arraySize-2; i++) {
+						ps->a[i] = d/16 + e/4 + 3*f/8 + ps->a[i+1]/4 + ps->a[i+2]/16;
+						d=e; e=f; f=ps->a[i+1];
+					}
+					break;
+				case DERIV:
+					ps1 = ps; /* y values */
+					INC(ps);
+					ps->a = &(ps->array[0]);
+					ps2 = ps; /* x values */
+					for (i=0; i<arraySize; i++) {ps2->a[i] = i;}
+					INC(ps);
+					ps->a = &(ps->array[0]); /* place for deriv */
+					status = deriv(ps2->a, ps1->a, arraySize, ps->a);
+					for (i=0; i<arraySize; i++) {ps1->a[i] = ps->a[i];}
+					DEC(ps); DEC(ps);
+					break;
+				case ARRSUM:
+					for (i=0, d=0.0; i<arraySize; i++) {
+						d += ps->a[i];
+					}
+					toDouble(ps);
+					ps->d = d;
+					break;
+				case FITPOLY:
+					ps1 = ps; /* y values */
+					INC(ps);
+					ps->a = &(ps->array[0]);
+					ps2 = ps; /* x values */
+					for (i=0; i<arraySize; i++) {ps2->a[i] = i;}
+					INC(ps);
+					ps->a = &(ps->array[0]); /* place for deriv */
+					status = fitpoly(ps2->a, ps1->a, arraySize, &d, &e, &f, NULL);
+					for (i=0; i<arraySize; i++) {
+						ps1->a[i] = d + e*ps2->a[i] + f*(ps2->a[i])*(ps2->a[i]);
+					}
+					DEC(ps); DEC(ps);
+					break;
+				case FITMPOLY:
+					ps3 = ps; /* mask array */
+					DEC(ps);
+					ps1 = ps; /* y values */
+					INC(ps); INC(ps); /* point to unused value-stack element */
+					ps->a = &(ps->array[0]);
+					ps2 = ps; /* x values */
+					for (i=0; i<arraySize; i++) {ps2->a[i] = i;}
+					INC(ps); /* point to unused value-stack element */
+					ps->a = &(ps->array[0]); /* place for deriv */
+					status = fitpoly(ps2->a, ps1->a, arraySize, &d, &e, &f, ps3->a);
+					for (i=0; i<arraySize; i++) {
+						ps1->a[i] = d + e*ps2->a[i] + f*(ps2->a[i])*(ps2->a[i]);
+					}
+					DEC(ps); DEC(ps); DEC(ps);
+					break;
 				}
 			} else {
 				switch (currSymbol) {
 				case ABS_VAL: if (ps->d < 0) {ps->d *= -1;} break;
 				case UNARY_NEG: ps->d *= -1; break;
 				case SQU_RT:
-					if (ps->d < 0) {stackInUse=0; return(-1);}
-					ps->d = sqrt(ps->d);
+					if (ps->d < 0) {
+						ps->d = 0;
+						printf("aCalcPerform: attempt to take sqrt of negative number\n");
+					} else {
+						ps->d = sqrt(ps->d);
+					}
 					break;
 				case EXP:
 					ps->d = exp(ps->d);
 					break;
 				case LOG_10:
-					if (ps->d < 0) {stackInUse=0; return(-1);}
-					ps->d = log10(ps->d);
+					if (ps->d < 0) {
+						ps->d = 0;
+						printf("aCalcPerform: attempt to take log of negative number\n");
+					} else {
+						ps->d = log10(ps->d);
+					}
 					break;
 				case LOG_E:
-					if (ps->d < 0) {stackInUse=0; return(-1);}
-					ps->d = log(ps->d);
+					if (ps->d < 0) {
+						ps->d = 0;
+						printf("aCalcPerform: attempt to take log of negative number\n");
+					} else {
+						ps->d = log(ps->d);
+					}
 					break;
-				case ACOS: if (ps->d < 0) {ps->d = acos(ps->d);} break;
-				case ASIN: if (ps->d < 0) {ps->d = asin(ps->d);} break;
-				case ATAN: if (ps->d < 0) {ps->d = atan(ps->d);} break;
-				case COS: if (ps->d < 0) {ps->d = cos(ps->d);} break;
-				case SIN: if (ps->d < 0) {ps->d = sin(ps->d);} break;
-				case TAN: if (ps->d < 0) {ps->d = tan(ps->d);} break;
-				case COSH: if (ps->d < 0) {ps->d = cosh(ps->d);} break;
-				case SINH: if (ps->d < 0) {ps->d = sinh(ps->d);} break;
-				case TANH: if (ps->d < 0) {ps->d = tanh(ps->d);} break;
-				case CEIL: if (ps->d < 0) {ps->d = ceil(ps->d);} break;
-				case FLOOR: if (ps->d < 0) {ps->d = floor(ps->d);} break;
-				case NINT: if (ps->d < 0) {ps->d = (double)(long)(ps->d >= 0 ? ps->d+0.5 : ps->d-0.5);} break;
+				case ACOS: {ps->d = acos(ps->d);} break;
+				case ASIN: {ps->d = asin(ps->d);} break;
+				case ATAN: {ps->d = atan(ps->d);} break;
+				case COS: {ps->d = cos(ps->d);} break;
+				case SIN: {ps->d = sin(ps->d);} break;
+				case TAN: {ps->d = tan(ps->d);} break;
+				case COSH: {ps->d = cosh(ps->d);} break;
+				case SINH: {ps->d = sinh(ps->d);} break;
+				case TANH: {ps->d = tanh(ps->d);} break;
+				case CEIL: {ps->d = ceil(ps->d);} break;
+				case FLOOR: {ps->d = floor(ps->d);} break;
+				case NINT: ps->d = (double)(long)(ps->d >= 0 ? ps->d+0.5 : ps->d-0.5); break;
 				case AMAX: break;
 				case AMIN: break;
 				case REL_NOT: ps->d = (ps->d ? 0 : 1); break;
@@ -567,6 +768,11 @@ long epicsShareAPI
 				case AVERAGE: break;
 				case STD_DEV: ps->d = 0; break;
 				case FWHM: ps->d = 0; break;
+				case SMOOTH: break;
+				case DERIV: ps->d = 0; break;
+				case ARRSUM: break;
+				case FITPOLY: ps->d = 0; break;
+				case FITMPOLY: ps->d = 0; break;
 				}
 			}
 			break;
@@ -574,7 +780,7 @@ long epicsShareAPI
 
 		case ARANDOM:
 			INC(ps);
-			ps->a = &(ps->local_array[0]);
+			ps->a = &(ps->array[0]);
 			for (i=0; i<arraySize; i++) ps->a[i] = local_random();
 			break;
 
@@ -590,34 +796,27 @@ long epicsShareAPI
 			DEC(ps);
 			checkStackElement(ps, *post);
 			toDouble(ps1);
-			/* is exponent an integer? */
-			i = (int) ps1->d;
-			if ((ps1->d - (double)i) != 0) {stackInUse=0; return(-1);}
+			/* if exponent is not integer, use nearest integer */
+			j = myNINT(ps1->d);
 			if (isArray(ps)) {
 				for (i=0; i<arraySize; i++) {
 					if (ps->a[i] == 0) continue;
 					if (ps->a[i] < 0) {
-						j = (int) ps1->d;
-						/* is exponent an integer? */
-						if ((ps1->d - (double)j) != 0) {stackInUse=0; return(-1);}
-       					ps->a[i] = exp(ps1->d * log(-(ps->a[i])));
+       					ps->a[i] = exp(j * log(-(ps->a[i])));
 						/* is value negative */
-						if ((i % 2) > 0) ps->a[i] = -ps->a[i];
+						if ((j % 2) > 0) ps->a[i] = -ps->a[i];
 					} else {
-						ps->a[i] = exp(ps1->d * log(ps->a[i]));
+						ps->a[i] = exp(j * log(ps->a[i]));
 					}
 				}
 			} else {
 				if (ps->d == 0) break;
 				if (ps->d < 0) {
-					i = (int) ps1->d;
-					/* is exponent an integer? */
-					if ((ps1->d - (double)i) != 0) {stackInUse=0; return(-1);}
-       				ps->d = exp(ps1->d * log(-(ps->d)));
+       				ps->d = exp(j * log(-(ps->d)));
 					/* is value negative */
-					if ((i % 2) > 0) ps->d = -ps->d;
+					if ((j % 2) > 0) ps->d = -ps->d;
 				} else {
-					ps->d = exp(ps1->d * log(ps->d));
+					ps->d = exp(j * log(ps->d));
 				}
 			}
 			break;
@@ -688,20 +887,41 @@ long epicsShareAPI
 			checkStackElement(ps, *post);
 			toDouble(ps1);
 			if (isDouble(ps)) {
+				/* scalar variable: bit shift by integer amount */
 				if (currSymbol == RIGHT_SHIFT) {
 					ps->d = (int)(ps->d) >> (int)(ps1->d);
 				} else {
 					ps->d = (int)(ps->d) << (int)(ps1->d);
 				}
 			} else {
-				j = myNINT(ps1->d);
-				if (currSymbol == LEFT_SHIFT)  j = -j;
+				/* array variable: shift array elements */
+				e = ps1->d;	/* num channels to shift */
+				if (currSymbol == LEFT_SHIFT)  e = -e;
+				j = myNINT(e);
 				if (j > 0) {
 					for (i=arraySize-1; i>=j; i--) ps->a[i] = ps->a[i-j];
 					for ( ; i>=0; i--) ps->a[i] = 0.;
 				} else if (j < 0) {
 					for (i=0; i<arraySize+j; i++) ps->a[i] = ps->a[i-j];
 					for ( ; i<arraySize; i++) ps->a[i] = 0.;
+				}
+				d = fabs(e - j);
+				/* printf("aCalcPerform:shift: d=%f\n", d);*/
+				if (d > SMALL) {
+					/* shift by delta-index of less than .5 */
+					if (e < j) {
+						for (i=0; i<arraySize-1; i++) {
+							ps->a[i] += d * (ps->a[i+1] - ps->a[i]);
+						}
+						/* extrapolate for last data point */
+						ps->a[i] += d * (ps->a[i] - ps->a[i-1]);
+					} else {
+						for (i=arraySize-1; i>0; i--) {
+							ps->a[i] += d * (ps->a[i-1] - ps->a[i]);
+						}
+						/* extrapolate for last data point */
+						ps->a[i] += d * (ps->a[i] - ps->a[i+1]);
+					}
 				}
 			}
 			break;
@@ -722,11 +942,15 @@ long epicsShareAPI
 			checkStackElement(ps, *post);
 			toDouble(ps);
 			d = ps->d;
-			ps->a = &(ps->local_array[0]);
+			ps->a = &(ps->array[0]);
 			ps->a[0] = '\0';
 			j = (int)(d >= 0 ? d+0.5 : 0);
 			if (j < num_aArgs) {
-				for (i=0; i<arraySize; i++) {ps->a[i] = pp_aArg[j][i];}
+				if (pp_aArg[j]) {
+					for (i=0; i<arraySize; i++) ps->a[i] = pp_aArg[j][i];
+				} else {
+					for (i=0; i<arraySize; i++) ps->a[i] = 0.0;
+				}
 			}
 			break;
 
@@ -792,7 +1016,11 @@ long epicsShareAPI
 
 	}
 
-	if (aCalcPerformDebug>=20) printf("aCalcPerform:done with expression\n");
+	if (aCalcPerformDebug>=20) printf("aCalcPerform:done with expression, status=%d\n", status);
+	if (status) {
+		stackInUse=0;
+		return(status);
+	}
 
 	/* if everything is peachy,the stack should end at its first position */
 	if (ps != top) {

@@ -5,7 +5,7 @@ from math import *
 from string import *
 
 import os
-os.environ['EPICS_CA_ADDR_LIST'] = "164.54.53.99"
+#os.environ['EPICS_CA_ADDR_LIST'] = "164.54.53.99"
 
 sCalcRecord = "xxx:userStringCalc2"
 calc = sCalcRecord + ".CALC"
@@ -14,6 +14,7 @@ sresult = sCalcRecord + ".SVAL"
 
 small = 1.e-9
 
+# Initialize an sCalcout record's fields for testing
 A2L = "ABCDEFGHIJKL"
 
 A=1.
@@ -39,11 +40,15 @@ HH = "string 8"
 II = "string 9"
 JJ = "string 10"
 KK = "string 11"
-LL = "string 12"
+LL = "xxx:scan1.EXSC"
 for i in range(12):
 	caput(sCalcRecord + "." + A2L[i], eval(A2L[i]))
 	caput(sCalcRecord + "." + A2L[i] + A2L[i], eval(A2L[i]+A2L[i]) )
 
+# List of expressions for testing
+# exp = [(sCalc_expression, equivalent_python_expression), ...]
+# If equivalent_python_expression == None, then the sCalc_expression can
+# be evaluated as-is by python.
 exp = [
 	("tan(A)", None),
 	("sin(B)", None),
@@ -54,7 +59,7 @@ exp = [
 	("A?B:C", "(B,C)[A==0]"),
 	("A&&B", "(A and B) != 0"),
 	("A||B", "(A or B) != 0"),
-#	("AA[0,'.']", "AA[0:find(AA,'.')]"),
+	("LL[0,'.']", "LL[0:LL.find('.')]"),
 	("A>B", None),
 	("A>B?BB:AA[A,A]", "(BB,AA[nint(A):nint(A+1)])[(A>B)==0]"),
 	("A>=4", None),
@@ -95,7 +100,7 @@ exp = [
 	("A?A+(B|C|D|E):F", "(A+(int(round(B))|int(round(C))|int(round(D))|int(round(E))),F)[A==0]"),
 	("D?4:C?3:B?2:A?1:0", "(4,((3,(2,(1,0)[A==0])[B==0])[C==0]))[D==0]"),
 	("a>0?1:0", "(1,0)[(A>0)==0]"),
-#	("(AA['.',-1]=='EXSC') && A", None),
+	("(LL['.',-1]=='EXSC') && A", "(LL[LL.find('.')+1:]=='EXSC') and A"),
 	("AA + BB", None),
 	("A?'A':'!A'", "('A','!A')[A==0]"),
 	("'$(P)$(SM)CalcMove.CALC PP MS'", None),
@@ -113,12 +118,12 @@ exp = [
 	("AA+(BB)+CC", None),
 	("A*1.0", None),
 	("$P('RSET %d;RSET?',A)", "'RSET %d;RSET?' % A"),
-#	("INT(AA)", atoi(AA)),
-#	("DBL(AA)", "float(AA)"),
+	('INT("1234")', 'atoi("1234")'),
+	('DBL("1234")', 'float("1234")'),
 	("$P('SETP %5.2f;SETP?',A)", "'SETP %5.2f;SETP?' % A"),
 	("$P('RAMP %d;RAMP?',A)", "'RAMP %d;RAMP?' % A"),
 	("$P('RAMPR %5.2f;RAMPR?',A)", "'RAMPR %5.2f;RAMPR?' % A"),
-#	("DBL(AA[14,17])", "float(AA[14,17+1])"),
+	('DBL("12345678"[4,7])', 'float("12345678"[4:7+1])'),
 	("DD+AA+EE+BB", None),
 	("log(A)", None),
 	("-(-2)**2", None),
@@ -127,7 +132,10 @@ exp = [
 	("A--B",None),
 	("A--B*C",None),
 	("A+B*C",None),
-	("D*((A-B)/C)", None)
+	("D*((A-B)/C)", None),
+	('SSCANF("-1","%d")', "-1"),
+	('SSCANF("-1","%hd")', "-1"),
+	('SSCANF("-1","%ld")', "-1")
 ]
 
 def nint(x):

@@ -49,15 +49,7 @@
 #include "epicsMath.h"
 #endif
 
-typedef union { long l[2]; double d; } DOUBLE_LONG;
-
 #define STACKSIZE 20
-#define ARRAY_SIZE 4000
-struct stackElement {
-	double d;
-	double *a;
-	double local_array[ARRAY_SIZE];
-};
 
 /*	defines for element table      */
 /* #define	BAD_EXPRESSION	0 */
@@ -123,34 +115,39 @@ struct stackElement {
 #define		ATAN2		59
 #define		STORE		60
 #define		TO_DOUBLE	61
-#define		SUBRANGE	63
-#define		TO_ARRAY	64
-#define		AVERAGE		65
-#define		STD_DEV		66
-#define		FWHM		67
+#define		SUBRANGE	62
+#define		TO_ARRAY	63
+#define		AVERAGE		64
+#define		STD_DEV		65
+#define		FWHM		66
+#define		SMOOTH		67
+#define		NSMOOTH		68
+#define		DERIV		69
+#define		NDERIV		70
+#define		ARRSUM		71
+#define		MAXFUNC		72
+#define		MINFUNC		73
+#define		AMAX		74
+#define		AMIN		75
+#define		SUBRANGE_IP	76
+#define		FITPOLY		77
+#define		FITMPOLY	78
 
-#define		A_FETCH		68
-#define		A_AFETCH	69
-
-#define		MAXFUNC		70
-#define		MINFUNC		71
-#define		AMAX		72
-#define		AMIN		73
-#define		SUBRANGE_IP	74
-
+#define		A_FETCH		80
+#define		A_AFETCH	81
 /* NOTE: FETCH_A .. FETCH_L must be contiguous and in alphabetical order */
-#define		FETCH_A		75
-#define		FETCH_B		76
-#define		FETCH_C		77
-#define		FETCH_D		78
-#define		FETCH_E		79
-#define		FETCH_F		80
-#define		FETCH_G		81
-#define		FETCH_H		82
-#define		FETCH_I		83
-#define		FETCH_J		84
-#define		FETCH_K		85
-#define		FETCH_L		86
+#define		FETCH_A		82
+#define		FETCH_B		83
+#define		FETCH_C		84
+#define		FETCH_D		85
+#define		FETCH_E		86
+#define		FETCH_F		87
+#define		FETCH_G		88
+#define		FETCH_H		89
+#define		FETCH_I		90
+#define		FETCH_J		91
+#define		FETCH_K		92
+#define		FETCH_L		93
 
 #define		GOOD_EXPRESSION		100
 

@@ -42,6 +42,9 @@
  * 03-03-06 tmm Added TR_ESC function, which applies dbTranslateEscape() to
  *              its argument, and ESC function, which applies
  *              epicsStrSnPrintEscaped() to its argument.
+ * 10-23-06 tmm Added CRC16 and MODBUS functions, calculate modbus 16-bit CRC
+ *              from string, and either return it, or append it.
+ * 10-24-06 tmm Added LRC, AMODBUS, XOR8 and ADD_XOR8 functions
  */
 
 /* This module contains the code for processing the arithmetic
@@ -81,16 +84,20 @@
 #include	<stdio.h>
 #include	<string.h>
 #include	<math.h>
+#include	<ctype.h>	/* for isdigit() */
 
 #include	"dbDefs.h"
 #include	"cvtFast.h"
 #include	"epicsString.h"
+#include	"epicsStdio.h"	/* for  epicsSnprintf() */
+
 #define epicsExportSharedSymbols
 #include	"sCalcPostfix.h"
 #include	"sCalcPostfixPvt.h"
 #include <epicsExport.h>
 
 static double	local_random();
+extern void getOpString(char code, char* opString);
 
 #define myNINT(a) ((int)((a) >= 0 ? (a)+0.5 : (a)-0.5))
 #ifndef PI
@@ -98,9 +105,11 @@ static double	local_random();
 #endif
 #define MAX(a,b) (a)>(b)?(a):(b)
 #define MIN(a,b) (a)<(b)?(a):(b)
+#define SMALL 1.e-11
 
 #define OVERRIDESTDCALC 0
-#define DEBUG 0
+#define DEBUG 1
+#define INIT_STACK 1
 volatile int sCalcPerformDebug = 0;
 epicsExportAddress(int, sCalcPerformDebug);
 
@@ -121,8 +130,8 @@ int sCalcStackLW = 0;	/* low-water mark */
 /* strncpy sucks (may copy extra characters, may not null-terminate) */
 #define strNcpy(dest, src, N) {			\
 	int ii;								\
-	char *dd=dest, *ss=src;				\
-	for (ii=0; *ss && ii < N-1; ii++)	\
+	char *dd=(dest), *ss=(src);				\
+	for (ii=0; *ss && ii < (N)-1; ii++)	\
 		*dd++ = *ss++;					\
 	*dd = '\0';							\
 }
@@ -149,6 +158,13 @@ int sCalcStackLW = 0;	/* low-water mark */
 		(void)cvtDoubleToString((ps)->d, (ps)->s, 8);	\
 }
 
+/*
+ * Find first conversion indicator in format string that is not assign suppressed,
+ * and return a pointer to it.
+ * Examples:
+ *    "%f"     the conversion indicator is 'f'
+ *    "%*2f%c" the conversion indicator is 'c'
+ */
 static char *findConversionIndicator(char *s)
 {
 	char *cc=NULL, *s1, *retval;
@@ -236,6 +252,95 @@ static char *findConversionIndicator(char *s)
 	return(retval);
 }
 
+#define POLYNOMIAL 0x0A001;
+int crc16(char *output, char *rawInput)
+{
+	int i, j, len;
+	unsigned int crc;
+	char tranInput[100];
+
+	len = dbTranslateEscape(tranInput, rawInput);
+	if (len == 0) return(-1);
+	if (sCalcPerformDebug>=5) {
+		printf("input string(len=%d): ", len);
+		for (i=0; i<len; i++) printf("0x%02x ", tranInput[i]);
+		printf("\n");
+	}
+	crc = 0xffff;
+	if (sCalcPerformDebug>=10) printf("crc=0x%04x\n", crc);
+	/* Loop through the translated input string */
+	for (i=0; i<len; i++) {
+		/* Exclusive-OR the next input byte with the low byte of the CRC */
+		/* crc = (crc&0x0ff00) | ((crc&0x0ff) ^ (unsigned int)tranInput[i]);*/
+		crc ^= (unsigned int)tranInput[i];
+		if (sCalcPerformDebug>=10) printf("crc=0x%04x\n", crc);
+		/* Loop through all 8 data bits */
+		for (j=0; j<8; j++) {
+			if (crc & 0x0001) {
+				crc >>= 1;
+				/* If the LSB is 1, XOR the polynomial mask with the CRC */
+				crc ^= POLYNOMIAL;
+			} else {
+				crc >>= 1;
+			}
+		if (sCalcPerformDebug>=10) printf("crc=0x%04x\n", crc);
+		}
+	}
+	/* put the CRC (low byte first) into the output string, escaped */
+	sprintf(output, "\\x%02x\\x%02x", crc&0xff, (crc&0xff00)>>8);
+	return(0);
+}
+
+int lrc(char *output, char *rawInput)
+{
+	int i, len;
+	unsigned int lrc;
+	unsigned char tranInput[100];
+
+	len = dbTranslateEscape((char *)tranInput, rawInput);
+	if (len == 0) return(-1);
+	if (sCalcPerformDebug>=5) {
+		printf("input string(len=%d): ", len);
+		for (i=0; i<len; i++) printf("0x%02x ", tranInput[i]);
+		printf("\n");
+	}
+	lrc = 0;
+	/* Loop through the translated input string */
+	for (i=0; i<len; i++) {
+		lrc += (unsigned int)tranInput[i];
+	}
+	lrc = -lrc;
+	if (sCalcPerformDebug>=10) printf("lrc=0x%04x\n", lrc);
+	/* put the LRC into the output string, escaped */
+	sprintf(output, "\\x%02x", lrc&0xff);
+	return(0);
+}
+
+int xor8(char *output, char *rawInput)
+{
+	int i, len;
+	unsigned int xor8;
+	char tranInput[100];
+
+	len = dbTranslateEscape(tranInput, rawInput);
+	if (len == 0) return(-1);
+	if (sCalcPerformDebug>=5) {
+		printf("input string(len=%d): ", len);
+		for (i=0; i<len; i++) printf("0x%02x ", tranInput[i]);
+		printf("\n");
+	}
+	xor8 = 0;
+	/* Loop through the translated input string */
+	for (i=0; i<len; i++) {
+		xor8 ^= (unsigned int)tranInput[i];
+	}
+	if (sCalcPerformDebug>=10) printf("xor8=0x%04x\n", xor8);
+	/* put XOR8 into the output string, escaped */
+	sprintf(output, "\\x%02x", xor8&0xff);
+	return(0);
+}
+
+
 #if OVERRIDESTDCALC
 /* Override standard EPICS expression evaluator (if we're loaded after it) */
 long epicsShareAPI 
@@ -245,6 +350,27 @@ long epicsShareAPI
 }
 #endif
 
+void showStack_usesString(struct stackElement *ps) {
+	int i;
+	printf("stack: ");
+	for (i=0; i<3; i++, ps--) {
+		if (isDouble(ps))
+			printf("%f ", ps->d);
+		else 
+			printf("'%s' ", ps->s);
+	}
+	printf("\n");
+}
+
+void showStack_noString(double *pd) {
+	int i;
+	printf("stack: ");
+	for (i=0; i<3; i++, pd--) {
+		printf("%f ", *pd);
+	}
+	printf("\n");
+}
+
 #define TMPSTR_SIZE 1000
 long epicsShareAPI 
 	sCalcPerform(double *parg, int numArgs, char **psarg, int numSArgs, double *presult, char *psresult, int lenSresult, char *post)
@@ -252,16 +378,16 @@ long epicsShareAPI
 	struct stackElement stack[STACKSIZE], *top;
 	struct stackElement *ps, *ps1, *ps2;
 	char				*s2, tmpstr[TMPSTR_SIZE], currSymbol;
-	char				*s, *s1;
+	char				*s, *s1, c;
 	int					i, j, k;
-	long				l;
+	long				l = 0L;
 	unsigned short		ui;
-	unsigned long		ul;
+	unsigned long		ul = 0UL;
 	float				f;
 	double				d;
 	double				*topd, *pd;
 	short 				h, got_if, cvt_to_double;
-	DOUBLE_LONG			*pu;
+	DOUBLE64_2LONG32	*pu;
 
 #if DEBUG
 	if (sCalcPerformDebug>=10) {
@@ -271,38 +397,54 @@ long epicsShareAPI
 		for (more=1; more;) {
 			if (*s >= FETCH_A && *s <= FETCH_L) {
 				printf("%c ", 'a' + (*s-FETCH_A));
+				s++;
 			} else {
-				printf("%2d ", *s);
-			}
-			switch (*s) {
-			case END_STACK:
-				more = 0;
-				break;
-			case LITERAL:
-				printf("(0x");
-				for (i=0, s++; i<8; i++, s++)
-					printf("%2x ", (unsigned int)(unsigned char)*s);
-				printf(") ");
-				break;
-			case SLITERAL:
-				s++; /* point past code */
-				printf("'");
-				while (*s) printf("%c", *s++);
-				printf("' ");
-				s++;
-				break;
-			case FETCH:
-				s++; /* point past code */
-				printf("@%d ", *s++);
-				break;
-			case SFETCH:
-				s++; /* point past code */
-				printf("$%d ", *s++);
-				break;
-			default:
-				if (*s == BAD_EXPRESSION) more=0;
-				s++;
-				break;
+				switch (*s) {
+				case END_STACK:
+					more = 0;
+					break;
+				case LITERAL:
+#if 0
+					printf("(0x");
+					for (i=0, s++; i<8; i++, s++)
+						printf("%2x ", (unsigned int)(unsigned char)*s);
+					printf(") ");
+#else
+					memcpy((void *)&d,++s,8);
+					printf("%f ", d);
+					s += 8;
+#endif
+					break;
+				case SLITERAL:
+					s++; /* point past code */
+					printf("'");
+					while (*s) printf("%c", *s++);
+					printf("' ");
+					s++;
+					break;
+				case FETCH:
+					s++; /* point past code */
+					printf("@%d ", *s++);
+					break;
+				case SFETCH:
+					s++; /* point past code */
+					printf("$%d ", *s++);
+					break;
+				case VARG_TERM:
+					s++; /* point past code */
+					printf("VARG_TERM ");
+					break;
+				case COND_END:
+					s++; /* point past code */
+					printf("COND_END ");
+					break;
+				default:
+					getOpString(*s, tmpstr);
+					printf("%s ", tmpstr);
+					if (*s == BAD_EXPRESSION) more=0;
+					s++;
+					break;
+				}
 			}
 		}
 
@@ -320,11 +462,18 @@ long epicsShareAPI
 
 	if (*post++ != USES_STRING) {
 
+#if INIT_STACK
+		for (i=0, pd = ((double *)&stack[10])-10; i<STACKSIZE; i++, pd++) {
+			*pd = 0;
+		}
+#endif
+
 		topd = pd = (double *)&stack[10];
 		pd--;
 
 		/* No string expressions */
 		while (*post != END_STACK) {
+			if (sCalcPerformDebug>=15) showStack_noString(pd);
 
 			switch (*post){
 
@@ -409,7 +558,7 @@ long epicsShareAPI
 			case COND_IF:
 				/* if false condition then skip true expression */
 				checkDoubleElement(pd, *post);
-				if (*pd == 0.0) {
+				if (fabs(*pd) < SMALL) {
 					/* skip to matching COND_ELSE */
 					for (got_if=1; got_if>0 && post[1] != END_STACK; ++post) {
 						switch(post[1]) {
@@ -483,16 +632,21 @@ long epicsShareAPI
 				*pd = log(*pd);
 				break;
 
-			case RANDOM:
+			case RANDOM:	/* Uniformly distributed in (0,1] (i.e., never zero). */
 				++pd;
 				*pd = local_random();
+				break;
+
+			case NORMAL_RNDM:	/* Normally distributed about zero, with std dev = 1. */
+				++pd;
+				*pd = sqrt(-2*log(local_random())) * cos(2*PI*local_random());
 				break;
 
 			case EXPON:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				if (*pd == 0) break;
+				if (fabs(*pd) < SMALL) break;
 				if (*pd < 0) {
 					i = (int) pd[1];
 					/* is exponent an integer? */
@@ -533,7 +687,7 @@ long epicsShareAPI
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = (int)(pd[1]) | (int)(*pd);
+				*pd = (long)(pd[1]) | (long)(*pd);
 				break;
 
 			case BIT_AND:
@@ -541,7 +695,7 @@ long epicsShareAPI
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = (int)(pd[1]) & (int)(*pd);
+				*pd = (long)(pd[1]) & (long)(*pd);
 				break;
 
 			case BIT_EXCL_OR:
@@ -549,63 +703,74 @@ long epicsShareAPI
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = (int)(pd[1]) ^ (int)(*pd);
+				*pd = (long)(pd[1]) ^ (long)(*pd);
 				break;
 
 			case GR_OR_EQ:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd >= pd[1];
+				/* *pd = *pd >= pd[1]; */
+				*pd = (fabs(*pd-pd[1]) < SMALL) || (*pd > pd[1]);
 				break;
 
 			case GR_THAN:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd > pd[1];
+				/* *pd = *pd > pd[1]; */
+				*pd = (*pd - pd[1]) > SMALL;
 				break;
 
 			case LESS_OR_EQ:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd <= pd[1];
+				/* *pd =  *pd < pd[1]; */
+				*pd = (fabs(*pd-pd[1]) < SMALL) || (*pd < pd[1]);
 				break;
 
 			case LESS_THAN:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd < pd[1];
+				/* *pd = *pd < pd[1]; */
+				*pd = (pd[1] - *pd) > SMALL;
 				break;
 
 			case NOT_EQ:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd != pd[1];
+				/* *pd = *pd != pd[1]; */
+				*pd = (fabs(*pd-pd[1]) > SMALL);
 				break;
 
 			case EQUAL:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = *pd == pd[1];
+#if 0
+				if (sCalcPerformDebug >= 15) {
+					printf("*pd=%f, pd[1]=%f, *pd == pd[1] = %d\n", *pd, pd[1], *pd == pd[1]);
+				}
+#endif
+				/* *pd = *pd == pd[1]; */
+				*pd = (fabs(*pd-pd[1]) < SMALL);
 				break;
 
 			case RIGHT_SHIFT:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = (int)(*pd) >> (int)(pd[1]);
+				*pd = (long)(*pd) >> (long)(pd[1]);
 				break;
 
 			case LEFT_SHIFT:
 				checkDoubleElement(pd, *post);
 				--pd;
 				checkDoubleElement(pd, *post);
-				*pd = (int)(*pd) << (int)(pd[1]);
+				*pd = (long)(*pd) << (long)(pd[1]);
 				break;
 
 			case MAX_VAL:
@@ -697,14 +862,19 @@ long epicsShareAPI
 
 			case BIT_NOT:
 				checkDoubleElement(pd, *post);
-				*pd = ~(int)(*pd);
+				*pd = ~(long)(*pd);
 				break;
 
 			case A_FETCH:
 				checkDoubleElement(pd, *post);
 				d = *pd;
 				i = (int)(d >= 0 ? d+0.5 : 0);
-				*pd = (i < numArgs) ? parg[i] : 0;
+				if (i >= numArgs || i < 0) {
+					printf("sCalcPerform: fetch index, %d, out of range.\n", i);
+					*pd = 0;
+				} else {
+					*pd = parg[i];
+				}
 				break;
 
 			case LITERAL:
@@ -758,7 +928,7 @@ long epicsShareAPI
 			case VARG_TERM:
 				/* put a NaN on the value stack to mark the end of arguments */
 				++pd;
-				pu = (DOUBLE_LONG *)pd;
+				pu = (DOUBLE64_2LONG32 *)pd;
 				pu->l[0] = pu->l[1] = 0xffffffff;
 				break;
 
@@ -791,7 +961,12 @@ long epicsShareAPI
 	} else {
 
 		/*** expression requires string operations ***/
-
+#if INIT_STACK
+		for (i=0, ps=&stack[0]; i<STACKSIZE; i++, ps++) {
+			ps->d = 0;
+			ps->s = NULL;
+		}
+#endif
 		top = ps = &stack[10];
 		ps--;  /* Expression handler assumes ps is pointing to a filled element */
 		ps->d = 1.23456; ps->s = NULL;	/* telltale */
@@ -877,7 +1052,7 @@ long epicsShareAPI
 					ps->d = ps->d + ps1->d;
 				} else {
 					/* concatenate two strings */
-					strncat(ps->s, ps1->s, LOCAL_STRING_SIZE);
+					strncat(ps->s, ps1->s, strlen(ps->s)-LOCAL_STRING_SIZE-1);
 				}
 				break;
 
@@ -943,7 +1118,7 @@ long epicsShareAPI
 				/* if false condition then skip true expression */
 				checkStackElement(ps, *post);
 				toDouble(ps);
-				if (ps->d == 0.0) {
+				if (fabs(ps->d) < SMALL) {
 					/* skip to matching COND_ELSE */
 					for (got_if=1; got_if>0 && post[1] != END_STACK; ++post) {
 						switch(post[1]) {
@@ -1031,6 +1206,12 @@ long epicsShareAPI
 				ps->s = NULL;
 				break;
 
+			case NORMAL_RNDM:				
+				INC(ps);
+				ps->d = sqrt(-2*log(local_random())) * cos(2*PI*local_random());
+				ps->s = NULL;
+				break;
+
 			case EXPON:
 				checkStackElement(ps, *post);
 				ps1 = ps;
@@ -1058,9 +1239,9 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				toDouble(ps1);
 				toDouble(ps);
-				if ((int)ps1->d == 0)
+				if ((long)ps1->d == 0)
 					return(-1);
-				ps->d = (double)((int)ps->d % (int)ps1->d);
+				ps->d = (double)((long)ps->d % (long)ps1->d);
 				break;
 
 			case REL_OR:
@@ -1091,7 +1272,7 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				toDouble(ps1);
 				toDouble(ps);
-				ps->d = (int)(ps1->d) | (int)(ps->d);
+				ps->d = (long)(ps1->d) | (long)(ps->d);
 				break;
 
 			case BIT_AND:
@@ -1102,7 +1283,7 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				toDouble(ps1);
 				toDouble(ps);
-				ps->d = (int)(ps1->d) & (int)(ps->d);
+				ps->d = (long)(ps1->d) & (long)(ps->d);
 				break;
 
 			case BIT_EXCL_OR:
@@ -1113,7 +1294,7 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				toDouble(ps1);
 				toDouble(ps);
-				ps->d = (int)(ps1->d) ^ (int)(ps->d);
+				ps->d = (long)(ps1->d) ^ (long)(ps->d);
 				break;
 
 			case GR_OR_EQ:
@@ -1123,10 +1304,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d >= ps1->d;
+					/* ps->d = ps->d >= ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL) || (ps->d > ps1->d);
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d >= ps1->d;
+					/* ps->d = ps->d >= ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL) || (ps->d > ps1->d);
 				} else {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) >= 0);
@@ -1141,10 +1324,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d > ps1->d;
+					/* ps->d = ps->d > ps1->d; */
+					ps->d = (ps->d - ps1->d) > SMALL;
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d > ps1->d;
+					/* ps->d = ps->d > ps1->d; */
+					ps->d = (ps->d - ps1->d) > SMALL;
 				} else {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) > 0);
@@ -1159,10 +1344,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d <= ps1->d;
+					/* ps->d = ps->d <= ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL) || (ps->d < ps1->d);
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d <= ps1->d;
+					/* ps->d = ps->d <= ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL) || (ps->d < ps1->d);
 				} else {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) <= 0);
@@ -1177,10 +1364,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d < ps1->d;
+					/* ps->d = ps->d < ps1->d; */
+					ps->d = (ps1->d - ps->d) > SMALL;
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d < ps1->d;
+					/* ps->d = ps->d < ps1->d; */
+					ps->d = (ps1->d - ps->d) > SMALL;
 				} else {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) < 0);
@@ -1195,10 +1384,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d != ps1->d;
+					/* ps->d = ps->d != ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) > SMALL);
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d != ps1->d;
+					/* ps->d = ps->d != ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) > SMALL);
 				} else {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) != 0);
@@ -1213,10 +1404,12 @@ long epicsShareAPI
 				checkStackElement(ps, *post);
 				if (isDouble(ps)) {
 					toDouble(ps1);
-					ps->d = ps->d == ps1->d;
+					/* ps->d = ps->d == ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL);
 				} else if (isDouble(ps1)) {
 					to_double(ps);
-					ps->d = ps->d == ps1->d;
+					/* ps->d = ps->d == ps1->d; */
+					ps->d = (fabs(ps->d - ps1->d) < SMALL);
 				} else if ((isString(ps)) && (isString(ps1))) {
 					/* compare ps->s to ps1->s */
 					ps->d = (double)(strcmp(ps->s, ps1->s) == 0);
@@ -1462,6 +1655,15 @@ long epicsShareAPI
 				toString(ps);
 				break;
 
+			case LEN:
+				checkStackElement(ps, *post);
+				toString(ps);
+				for (i=0; (i < LOCAL_STRING_SIZE) && ps->s[i]; i++)
+					;
+				ps->d = (double)i;
+				ps->s = NULL;
+				break;
+
 			case BYTE:
 				checkStackElement(ps, *post);
 				if (isString(ps)) {
@@ -1506,6 +1708,74 @@ long epicsShareAPI
 				strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
 				break;
 
+	 		case BIN_WRITE:
+				checkStackElement(ps, *post);
+				ps1 = ps;
+				DEC(ps);
+				checkStackElement(ps, *post);
+				if (isDouble(ps))
+					return(-1);
+				s = ps->s;
+				while ((s1 = strstr(s, "%%"))) {s = s1+2;}
+				if (((s = strpbrk(s, "%")) == NULL) ||
+					((s = strpbrk(s+1, "*cdeEfgGiousxX")) == NULL)) {
+					/* no printf arguments needed */
+		 			return(-1);
+				} else {
+					switch (*s) {
+					default: case '*':
+						return(-1);
+					case 'c':
+						toDouble(ps1);
+						c = myNINT(ps1->d);
+						memcpy(ps->s, &c, 1);
+						j = 1;
+						break;
+					case 'd': case 'i':
+						toDouble(ps1);
+						if (s[-1] == 'h') {
+							h = myNINT(ps1->d);
+							memcpy(ps->s, &h, 2);
+							j = 2;
+						} else {
+							l = myNINT(ps1->d);
+							memcpy(ps->s, &l, 4);
+							j = 4;
+						}
+						break;
+					case 'o': case 'u': case 'x': case 'X':
+						toDouble(ps1);
+						if (s[-1] == 'h') {
+							ui = myNINT(ps1->d);
+							memcpy(ps->s, &ui, 2);
+							j = 2;
+						} else {
+							ul = myNINT(ps1->d);
+							memcpy(ps->s, &ul, 4);
+							j = 4;
+						}
+						break;
+					case 'e': case 'E': case 'f': case 'g': case 'G':
+						toDouble(ps1);
+						if (s[-1] == 'l') {
+							memcpy(ps->s, &(ps1->d), 8);
+							j = 8;
+						} else {
+							f = ps1->d;
+							memcpy(ps->s, &f, 4);
+							j = 4;
+						}
+						break;
+					case 's':
+						return(-1);
+					}
+				}
+		 		i = epicsStrSnPrintEscaped(tmpstr, LOCAL_STRING_SIZE-1, ps->s, j);
+				i = MIN(i, LOCAL_STRING_SIZE);
+				tmpstr[i] = '\0'; /* make sure it's terminated */
+				strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+				break;
+
 	 		case SSCANF:
 				checkStackElement(ps, *post);
 				ps1 = ps;
@@ -1516,41 +1786,159 @@ long epicsShareAPI
 				s = findConversionIndicator(ps1->s);
 				if (s == NULL)
 					return(-1);
+				i = 1; /* successful return value from sscanf */
 				switch (*s) {
 				default: case 'p': case 'w': case 'n': case '$':
 					return(-1);
 				case 'd': case 'i':
 					if (s[-1] == 'h') {
-		 				sscanf(ps->s, ps1->s, &h);
+						h = 0;
+		 				i = sscanf(ps->s, ps1->s, &h);
 						ps->d = (double)h;
-					} else {
-		 				sscanf(ps->s, ps1->s, &l);
+					} else if (s[-1] == 'l') {
+						l = 0L;
+		 				i = sscanf(ps->s, ps1->s, &l);
 						ps->d = (double)l;
+					} else {
+						j = 0;
+		 				i = sscanf(ps->s, ps1->s, &j);
+						ps->d = (double)j;
 					}
 					ps->s = NULL;
 					break;
 				case 'o': case 'u': case 'x': case 'X':
 					if (s[-1] == 'h') {
-		 				sscanf(ps->s, ps1->s, &ui);
+		 				i = sscanf(ps->s, ps1->s, &ui);
 						ps->d = (double)ui;
 					} else {
-		 				sscanf(ps->s, ps1->s, &ul);
+		 				i = sscanf(ps->s, ps1->s, &ul);
 						ps->d = (double)ul;
 					}
 					ps->s = NULL;
 					break;
 				case 'e': case 'E': case 'f': case 'g': case 'G':
 					if (s[-1] == 'l') {
-		 				sscanf(ps->s, ps1->s, &(ps->d));
+		 				i = sscanf(ps->s, ps1->s, &(ps->d));
 					} else {
-		 				sscanf(ps->s, ps1->s, &f);
+		 				i = sscanf(ps->s, ps1->s, &f);
 						ps->d = (double)f;
 					}
 					ps->s = NULL;
 					break;
 				case 'c': case '[': case 's':
-		 			sscanf(ps->s, ps1->s, tmpstr);
+		 			i = sscanf(ps->s, ps1->s, tmpstr);
 					strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+					break;
+				}
+				if (i != 1) {
+					/* sscanf error */
+					return(-1); 
+				}
+				break;
+
+	 		case BIN_READ:
+				checkStackElement(ps, *post);
+				ps1 = ps;
+				DEC(ps);
+				checkStackElement(ps, *post);
+				if (isDouble(ps) || isDouble(ps1))
+					return(-1);
+				/* find first conversion indicator that is not assign suppressed */
+				s = findConversionIndicator(ps1->s);
+				if (s == NULL)
+					return(-1);
+		 		i = dbTranslateEscape(tmpstr, ps->s);
+				s1 = tmpstr;
+
+				/*
+				 * See if we have to skip over any bytes before copying data.
+				 * I.e., check for conversion-suppression character upstream of s
+				 */
+				s2 = strchr(ps1->s, (int)'*');
+				if (s2 && s2 < s) {
+					/* Determine how many bytes we have to skip over.  Note
+					 * we are permitting, e.g.,
+					 *     "%*2f" 	skip over 2 4-byte floats
+					 *     "%*2hd" 	skip over 2 2-byte shorts
+					 *     "%*2c"   skip over 2 bytes
+					 *     "%*2"    skip over 2 bytes (sscanf would not allow this)
+					 */
+					s2++;
+					i = 1;
+					if (isdigit((int)*s2)) {
+						i = atoi(s2);
+						while (isdigit((int)*s2)) s2++;
+					}
+					switch (*s2) {
+						case 'h':
+							i *= 2;
+							break;
+						case 'l':
+							if (strpbrk(s2, "diouxX")) {
+								i *= 4;
+							} else {
+								/* assume some kind of float */
+								i *= 8;
+							}
+							break;
+						case 'd': case 'i': case 'o': case 'u': case 'x': case 'X':
+							if (s2[-1] == 'h') {
+								i *= 2;
+							} else {
+								i *= 4;
+							}
+							break;
+							
+						case 'e': case 'E': case 'f': case 'g': case 'G':
+							if (s2[-1] == 'l') {
+								i *= 8;
+							} else {
+								i *= 4;
+							}
+							break;
+					}
+					/* skip past i bytes of the string to be read */
+					s1 += i;
+				}
+
+				/* Do the read */
+				switch (*s) {
+				default: case 'p': case 'w': case 'n': case '$': case '[': case 's':
+					/* unsupported conversion indicator */
+					return(-1);
+				case 'd': case 'i':
+					if (s[-1] == 'h') {
+						memcpy(&h, s1, 2);
+						ps->d = (double)h;
+					} else {
+						memcpy(&l, s1, 4);
+						ps->d = (double)l;
+					}
+					ps->s = NULL;
+					break;
+				case 'o': case 'u': case 'x': case 'X':
+					if (s[-1] == 'h') {
+						memcpy(&ui, s1, 2);
+						ps->d = (double)ui;
+					} else {
+						memcpy(&ul, s1, 4);
+						ps->d = (double)ul;
+					}
+					ps->s = NULL;
+					break;
+				case 'e': case 'E': case 'f': case 'g': case 'G':
+					if (s[-1] == 'l') {
+						memcpy(&(ps->d), s1, 8);
+					} else {
+						memcpy(&f, s1, 4);
+						ps->d = (double)f;
+					}
+					ps->s = NULL;
+					break;
+				case 'c':
+					memcpy(&c, s1, 1);
+					ps->d = (double)c;
+					ps->s = NULL;
 					break;
 				}
 				break;
@@ -1558,8 +1946,14 @@ long epicsShareAPI
 			case TR_ESC:
 				checkStackElement(ps, *post);
 				if (isString(ps)) {
-		 			dbTranslateEscape(tmpstr, ps->s);
+		 			i = dbTranslateEscape(tmpstr, ps->s);
+#if 0 /* No use doing this, since no function reads past end-of-string */
+					if (i > LOCAL_STRING_SIZE-1) i = LOCAL_STRING_SIZE-1;
+					memcpy(ps->s, tmpstr, i);
+					ps->s[i] = '\0';
+#else
 					strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+#endif
 				}
 				break;
 
@@ -1574,6 +1968,58 @@ long epicsShareAPI
 					i = MIN(i, LOCAL_STRING_SIZE);
 					tmpstr[i] = '\0'; /* make sure it's terminated */
 					strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+				}
+				break;
+
+			case CRC16:
+			case MODBUS:
+				checkStackElement(ps, *post);
+				if (isString(ps)) {
+		 			if (crc16(tmpstr, ps->s) == 0) {
+						if (currSymbol==CRC16) {
+							strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+						} else {
+							strncat(ps->s, tmpstr, strlen(ps->s)-LOCAL_STRING_SIZE-1);
+						}
+					}
+				}
+				break;
+
+			case LRC:
+			case AMODBUS:
+				/* Note that this isn't complete:  Ascii modbus has to have its LRC
+				 * computed while the command string is still binary, then the
+				 * (binary) LRC is appended, then ':' is prepended and <cr><lf> is appended
+				 * Example: To send the binary command string "F7 03 13 89 00 0A" (hex,
+				 * obviously), you calculate the LRC (0x60), append to the command string,
+				 * and convert hex character by character to ASCII, yielding
+				 * "46 37 30 33 31 33 38 39 30 30 30 41 36 30"
+				 * then you prepend ':' (0x3a) and append <cr><lf> (0x0d0a), yielding
+				 * "3A 46 37 30 33 31 33 38 39 30 30 30 41 36 30 0D 0A"
+				 */
+				checkStackElement(ps, *post);
+				if (isString(ps)) {
+		 			if (lrc(tmpstr, ps->s) == 0) {
+						if (currSymbol==LRC) {
+							strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+						} else {
+							strncat(ps->s, tmpstr, strlen(ps->s)-LOCAL_STRING_SIZE-1);
+						}
+					}
+				}
+				break;
+
+			case XOR8:
+			case ADD_XOR8:
+				checkStackElement(ps, *post);
+				if (isString(ps)) {
+		 			if (xor8(tmpstr, ps->s) == 0) {
+						if (currSymbol==XOR8) {
+							strNcpy(ps->s, tmpstr, LOCAL_STRING_SIZE-1);
+						} else {
+							strncat(ps->s, tmpstr, strlen(ps->s)-LOCAL_STRING_SIZE-1);
+						}
+					}
 				}
 				break;
 
@@ -1704,7 +2150,7 @@ long epicsShareAPI
 				/* put a NaN on the value stack to mark the end of arguments */
 				INC(ps);
 				ps->s = NULL;
-				pu = (DOUBLE_LONG *)&ps->d;
+				pu = (DOUBLE64_2LONG32 *)&ps->d;
 				pu->l[0] = pu->l[1] = 0xffffffff;
 				break;
 
@@ -1766,15 +2212,14 @@ long epicsShareAPI
 static unsigned short seed = 0xa3bf;
 static unsigned short multy = 191 * 8 + 5;  /* 191 % 8 == 5 */
 static unsigned short addy = 0x3141;
+extern double simple_random(void);
 static double local_random()
 {
-        double  randy;
+	double  randy;
 
-        /* random number */
-        seed = (seed * multy) + addy;
-        randy = (float) seed / 65535.0;
-
-        /* between 0 - 1 */
-        return(randy);
+	/* random number */
+	seed = (seed * multy) + addy;
+	/* randy = (float) seed / 65535.0; */
+	randy = (float) (seed+1) / 65536.0;	/* exclude zero */
+	return(randy);
 }
-

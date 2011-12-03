@@ -45,9 +45,14 @@
  *                    to OUT.  Misc changes to stay closer to calcout record's
  *                    implementation.
  * 05-24-06    tmm    v3.9  Added Dirk Zimoch's fix to call DSET->init_record()
+ * 01-24-08    tmm    v4.0: Fixed check of outlink (if link to link field,
+ *                    or if .WAIT, then outlink attribute must be CA).
+ * 04-29-08    tmm    v4.1: Peter Mueller noticed that calc records were not
+ *                    checking VAL against limits until after execOutput --
+ *                    too late to do IVOA.
  */
 
-#define VERSION 3.9
+#define VERSION 4.1
 
 
 #include	<stdlib.h>
@@ -63,12 +68,14 @@
 #include	<dbEvent.h>
 #include	<dbScan.h>
 #include	<errMdef.h>
+#include	<errlog.h>
 #include	<recSup.h>
 #include	<devSup.h>
 #include	<recGbl.h>
 #include	<special.h>
 #include	<callback.h>
 #include	<taskwd.h>
+#include	<epicsString.h>	/* for epicsStrSnPrintEscaped() */
 #include	"sCalcPostfix.h"
 
 #define GEN_SIZE_OFFSET
@@ -163,8 +170,8 @@ static long writeValue(scalcoutRecord *pcalc);
 volatile int    sCalcoutRecordDebug = 0;
 epicsExportAddress(int, sCalcoutRecordDebug);
 
-#define ARG_MAX 12
-#define STRING_ARG_MAX 12
+#define MAX_FIELDS 12
+#define STRING_MAX_FIELDS 12
 /*
  * Strings defined in the .dbd file are assumed to be of length STRING_SIZE.
  * Strings implemented in the .dbd file with a char * pointer (for which space
@@ -191,16 +198,16 @@ static long init_record(scalcoutRecord *pcalc, int pass)
 		pcalc->vers = VERSION;
 		pcalc->rpvt = (void *)calloc(1, sizeof(struct rpvtStruct));
 		/* allocate space for previous-value strings */
-		s = (char *)calloc(STRING_ARG_MAX, STRING_SIZE);
-		for (i=0, ps=(char **)&(pcalc->paa); i<STRING_ARG_MAX; i++, ps++)
+		s = (char *)calloc(STRING_MAX_FIELDS, STRING_SIZE);
+		for (i=0, ps=(char **)&(pcalc->paa); i<STRING_MAX_FIELDS; i++, ps++)
 			*ps = &s[i*STRING_SIZE];
 		/* allocate and fill in array of pointers to strings AA... */
-		pcalc->strs = (char **)calloc(STRING_ARG_MAX, sizeof(char *));
+		pcalc->strs = (char **)calloc(STRING_MAX_FIELDS, sizeof(char *));
 		if (sCalcoutRecordDebug) printf("sCalcoutRecord:init_record: strs=%p\n",
 			pcalc->strs);
 		s = (char *)&(pcalc->aa);
 		ps = (char **)(pcalc->strs);
-		for (i=0; i<STRING_ARG_MAX; i++, s+=STRING_SIZE, ps++)
+		for (i=0; i<STRING_MAX_FIELDS; i++, s+=STRING_SIZE, ps++)
 			*ps = s;
 		return(0);
 	}
@@ -219,10 +226,10 @@ static long init_record(scalcoutRecord *pcalc, int pass)
 	plink = &pcalc->inpa;
 	pvalue = &pcalc->a;
 	plinkValid = &pcalc->inav;
-	for (i=0; i<(ARG_MAX+STRING_ARG_MAX+1); i++, plink++, pvalue++, plinkValid++) {
+	for (i=0; i<(MAX_FIELDS+STRING_MAX_FIELDS+1); i++, plink++, pvalue++, plinkValid++) {
 		if (plink->type == CONSTANT) {
 			/* Don't InitConstantLink the string links or the output link. */
-			if (i < ARG_MAX) { 
+			if (i < MAX_FIELDS) { 
 				recGblInitConstantLink(plink,DBF_DOUBLE,pvalue);
 				db_post_events(pcalc,pvalue,DBE_VALUE);
 			}
@@ -230,15 +237,20 @@ static long init_record(scalcoutRecord *pcalc, int pass)
 			if (plink == &pcalc->out)
 				prpvt->outlink_field_type = DBF_NOACCESS;
         } else if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
-			/* see if the PV resides on this ioc */
+			/* the PV we're linked to resides on this ioc */
 			*plinkValid = scalcoutINAV_LOC;
-			if (plink == &pcalc->out)
+			if (plink == &pcalc->out) {
 				prpvt->outlink_field_type = pAddr->field_type;
-			if (sCalcoutRecordDebug && (pAddr->field_type >= DBF_INLINK) &&
-					(pAddr->field_type <= DBF_FWDLINK)) {
-				s = strchr(plink->value.pv_link.pvname, (int)' ') + 1;
-				if (strncmp(s,"CA",2)) printf("sCalcoutRecord(%s):init_record:dblink to link field\n",
-					pcalc->name);
+				if ((pAddr->field_type >= DBF_INLINK) && (pAddr->field_type <= DBF_FWDLINK)) {
+					if (!(plink->value.pv_link.pvlMask & pvlOptCA)) {
+						printf("sCalcoutRecord(%s):init_record:non-CA link to link field\n",
+							plink->value.pv_link.pvname);
+					}
+				}
+				if (pcalc->wait && !(plink->value.pv_link.pvlMask & pvlOptCA)) {
+					printf("sCalcoutRecord(%s):init_record: Can't wait with non-CA link attribute\n",
+						plink->value.pv_link.pvname);
+				}
 			}
 		} else {
 			/* pv is not on this ioc. Callback later for connection stat */
@@ -296,14 +308,21 @@ static long process(scalcoutRecord *pcalc)
 		/* if some links are CA, check connections */
 		if (prpvt->caLinkStat != NO_CA_LINKS) checkLinks(pcalc);
 		if (fetch_values(pcalc)==0) {
-			stat = sCalcPerform(&pcalc->a, ARG_MAX, (char **)(pcalc->strs),
-					STRING_ARG_MAX, &pcalc->val, pcalc->sval, STRING_SIZE,
+			stat = sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
+					STRING_MAX_FIELDS, &pcalc->val, pcalc->sval, STRING_SIZE,
 					pcalc->rpcl);
-			if (stat)
+			if (stat) {
+				pcalc->val = -1;
+				strcpy(pcalc->sval,"***ERROR***");
 				recGblSetSevr(pcalc,CALC_ALARM,INVALID_ALARM);
-			else
+			} else {
 				pcalc->udf = FALSE;
+			}
 		}
+
+		/* Check VAL against limits */
+	    checkAlarms(pcalc);
+
 		/* check for output link execution */
 		switch (pcalc->oopt) {
 		case scalcoutOOPT_Every_Time:
@@ -369,7 +388,7 @@ static long process(scalcoutRecord *pcalc)
             writeValue(pcalc);
 		}
 	}
-    checkAlarms(pcalc);
+    /*checkAlarms(pcalc); This is too late; IVOA might have vetoed output */
     recGblGetTimeStamp(pcalc);
     monitor(pcalc);
     recGblFwdLink(pcalc);
@@ -391,7 +410,6 @@ static long special(dbAddr	*paddr, int after)
 	DBLINK			*plink;
 	double			*pvalue;
 	unsigned short	*plinkValid;
-	char			*s;
 
 	if (!after) return(0);
 	switch (fieldIndex) {
@@ -404,7 +422,6 @@ static long special(dbAddr	*paddr, int after)
 		}
 		db_post_events(pcalc,&pcalc->clcv,DBE_VALUE);
 		return(0);
-		break;
 
 	case scalcoutRecordOCAL:
 		pcalc->oclv = sCalcPostfix(pcalc->ocal, (char *)pcalc->orpc, &error_number);
@@ -415,7 +432,6 @@ static long special(dbAddr	*paddr, int after)
 		}
 		db_post_events(pcalc,&pcalc->oclv,DBE_VALUE);
 		return(0);
-		break;
 
 	case(scalcoutRecordINPA):
 	case(scalcoutRecordINPB):
@@ -456,15 +472,40 @@ static long special(dbAddr	*paddr, int after)
 			if (fieldIndex == scalcoutRecordOUT)
 				prpvt->outlink_field_type = DBF_NOACCESS;
 		} else if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
+			short pvlMask = plink->value.pv_link.pvlMask;
+			short isCA = pvlMask & (pvlOptCA|pvlOptCP|pvlOptCPP);
+
 			/* PV resides on this ioc */
-			*plinkValid = scalcoutINAV_LOC;
+			if ((fieldIndex <= scalcoutRecordINPL) || (fieldIndex > scalcoutRecordINLL) || !isCA) {
+				/* Not a string input link or not a CA (type) link */
+				*plinkValid = scalcoutINAV_LOC;
+			} else {
+				/*
+				 * string link of type CA.  We need to check the return from dbGetLink(),
+				 * because it may fail the first time we call it.  If we're connected to
+				 * a DBF_ENUM PV, dbGetLink() won't succeed until it gets the enum-string
+				 * values, which it needs to convert numbers to strings.
+				 */
+				/* lie: say the PV is not connected and from another ioc so we'll check it */
+				*plinkValid = scalcoutINAV_EXT_NC;
+				if (!prpvt->wd_id_1_LOCK) {
+					callbackRequestDelayed(&prpvt->checkLinkCb,.5);
+					prpvt->wd_id_1_LOCK = 1;
+					prpvt->caLinkStat = CA_LINKS_NOT_OK;
+				}
+			}
 			if (fieldIndex == scalcoutRecordOUT) {
 				prpvt->outlink_field_type = pAddr->field_type;
-			if (sCalcoutRecordDebug && (pAddr->field_type >= DBF_INLINK) &&
-					(pAddr->field_type <= DBF_FWDLINK)) {
-				s = strchr(plink->value.pv_link.pvname, (int)' ') + 1;
-				if (strncmp(s,"CA",2)) printf("sCalcoutRecord:special:dblink to link field\n");
-			}
+				if ((pAddr->field_type >= DBF_INLINK) && (pAddr->field_type <= DBF_FWDLINK)) {
+					if (!(plink->value.pv_link.pvlMask & pvlOptCA)) {
+						printf("sCalcoutRecord(%s):special:non-CA link to link field\n",
+							plink->value.pv_link.pvname);
+					}
+				}
+				if (pcalc->wait && !(plink->value.pv_link.pvlMask & pvlOptCA)) {
+					printf("sCalcoutRecord(%s):special: Can't wait with non-CA link attribute\n",
+						plink->value.pv_link.pvname);
+				}
 			}
 		} else {
 			/* pv is not on this ioc. Callback later for connection stat */
@@ -480,7 +521,6 @@ static long special(dbAddr	*paddr, int after)
 		}
         db_post_events(pcalc,plinkValid,DBE_VALUE);
 		return(0);
-		break;
 
 	default:
 		recGblDbaddrError(S_db_badChoice,paddr,"calc: special");
@@ -670,16 +710,18 @@ static void execOutput(scalcoutRecord *pcalc)
 		break;
 
 	case scalcoutDOPT_Use_OVAL:
-		if (sCalcPerform(&pcalc->a, ARG_MAX, (char **)(pcalc->strs),
-				STRING_ARG_MAX, &pcalc->oval, pcalc->osv, STRING_SIZE,
+		if (sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
+				STRING_MAX_FIELDS, &pcalc->oval, pcalc->osv, STRING_SIZE,
 				(char *)pcalc->orpc)) {
+			pcalc->val = -1;
+			strcpy(pcalc->osv,"***ERROR***");
 			recGblSetSevr(pcalc,CALC_ALARM,INVALID_ALARM);
 		}
 		break;
 	}
 
 	/* Check to see what to do if INVALID */
-	if (pcalc->sevr < INVALID_ALARM) {
+	if (pcalc->nsev < INVALID_ALARM) {
 		/* Output the value */
 		status = writeValue(pcalc);
 		/* post event if output event != 0 */
@@ -751,13 +793,13 @@ static void monitor(scalcoutRecord *pcalc)
 	}
 
 	/* check all input fields for changes */
-	for (i=0, pnew=&pcalc->a, pprev=&pcalc->pa; i<ARG_MAX;  i++, pnew++, pprev++) {
+	for (i=0, pnew=&pcalc->a, pprev=&pcalc->pa; i<MAX_FIELDS;  i++, pnew++, pprev++) {
 		if ((*pnew != *pprev) || (monitor_mask&DBE_ALARM)) {
 			db_post_events(pcalc,pnew,monitor_mask|DBE_VALUE|DBE_LOG);
 			*pprev = *pnew;
 		}
 	}
-	for (i=0, psnew=pcalc->strs, psprev=&pcalc->paa; i<STRING_ARG_MAX;
+	for (i=0, psnew=pcalc->strs, psprev=&pcalc->paa; i<STRING_MAX_FIELDS;
 			i++, psnew++, psprev++) {
 		if (strcmp(*psnew, *psprev)) {
 			db_post_events(pcalc, *psnew, monitor_mask|DBE_VALUE|DBE_LOG);
@@ -776,22 +818,63 @@ static int fetch_values(scalcoutRecord *pcalc)
 {
 	DBLINK	*plink;	/* structure of the link field  */
 	double	*pvalue;
-	char	**psvalue;
-	long	status = 0;
-	int		i;
+	char	**psvalue, tmpstr[STRING_SIZE];
+	long	status=0, nelm=1;
+	int		i, j;
+	short	field_type = 0;
+	dbAddr	Addr;
+	dbAddr	*pAddr = &Addr;
 #if 0
 	TS_STAMP	timeStamp;
 #endif
 
-	for (i=0, plink=&pcalc->inpa, pvalue=&pcalc->a; i<ARG_MAX; 
+	for (i=0, plink=&pcalc->inpa, pvalue=&pcalc->a; i<MAX_FIELDS; 
 			i++, plink++, pvalue++) {
 		status = dbGetLink(plink, DBR_DOUBLE, pvalue, 0, 0);
 		if (!RTN_SUCCESS(status)) return(status);
 	}
 
-	for (i=0, plink=&pcalc->inaa, psvalue=pcalc->strs; i<STRING_ARG_MAX; 
+	for (i=0, plink=&pcalc->inaa, psvalue=pcalc->strs; i<STRING_MAX_FIELDS; 
 			i++, plink++, psvalue++) {
-		status = dbGetLink(plink, DBR_STRING, *psvalue, 0, 0);
+		status = 0;
+		field_type = 0;
+		nelm = 1;
+		switch (plink->type) {
+		case CA_LINK:
+			field_type = dbCaGetLinkDBFtype(plink);
+			dbCaGetNelements(plink, &nelm);
+			break;
+		case DB_LINK:
+			if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
+				field_type = pAddr->field_type;
+				nelm = pAddr->no_elements;
+			} else {
+				field_type = DBR_STRING;
+				nelm = 1;
+			}
+			break;
+		default:
+			break;
+		}
+		if ((plink->type==CA_LINK) || (plink->type==DB_LINK)) {
+			if (nelm > STRING_SIZE-1) nelm = STRING_SIZE-1;
+			if (((field_type==DBR_CHAR) || (field_type==DBR_UCHAR)) && nelm>1) {
+				for (j=0; j<STRING_SIZE; j++) (*psvalue)[j]='\0';
+				status = dbGetLink(plink, field_type, tmpstr, 0, &nelm);
+				if (sCalcoutRecordDebug > 1)
+					printf("fetch_values('%s'): dbGetLink(%d) field_type %d, returned %ld\n", pcalc->name, i, field_type, status);
+				if (nelm>0) {
+					epicsStrSnPrintEscaped(*psvalue, STRING_SIZE-1, tmpstr, nelm);
+					(*psvalue)[STRING_SIZE-1] = '\0';
+				} else {
+					(*psvalue)[0] = '\0';
+				}
+			} else {
+				status = dbGetLink(plink, DBR_STRING, *psvalue, 0, 0);
+				if (sCalcoutRecordDebug > 1)
+					printf("fetch_values('%s'): dbGetLink(%d) DBR_STRING, returned %ld\n", pcalc->name, i, status);
+			}
+		}
 #if 0
 		if (!RTN_SUCCESS(status)) {
 			/* might be a time value */
@@ -838,35 +921,65 @@ static void checkLinks(scalcoutRecord *pcalc)
 	unsigned short	*plinkValid;
 	dbAddr			Addr;
 	dbAddr			*pAddr = &Addr;
-	char			*s;
+	char 			tmpstr[100];
+	int linkWorks;
 
-	if (sCalcoutRecordDebug) printf("checkLinks() for %p\n", pcalc);
+	if (sCalcoutRecordDebug) printf("checkLinks() for %s\n", pcalc->name);
 
 	plink   = &pcalc->inpa;
 	plinkValid = &pcalc->inav;
 
-	for (i=0; i<ARG_MAX+STRING_ARG_MAX+1; i++, plink++, plinkValid++) {
+	for (i=0; i<MAX_FIELDS+STRING_MAX_FIELDS+1; i++, plink++, plinkValid++) {
 		if (plink->type == CA_LINK) {
 			isCaLink = 1;
+
+			/* See if link is fully functional. (CA link to ENUM must wait for enum strings.) */
+			linkWorks = 0;
 			if (dbCaIsLinkConnected(plink)) {
+				if (i >= MAX_FIELDS && i < MAX_FIELDS+STRING_MAX_FIELDS) {
+					/* this is a string link, do a trial dbGetLink() */
+					long	status;
+					status = dbGetLink(plink, DBR_STRING, tmpstr, 0, 0);
+					if (RTN_SUCCESS(status)) {
+						linkWorks = 1;
+					} else {
+						if (sCalcoutRecordDebug)
+							printf("checkLinks: dbGetLink returned %ld\n", status);
+					}
+				}
+			}
+
+			/* if (dbCaIsLinkConnected(plink)) { */
+			if (linkWorks) {
 				if (*plinkValid == scalcoutINAV_EXT_NC) {
-					*plinkValid = scalcoutINAV_EXT;
+					if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
+						/* PV resides on this ioc */
+						*plinkValid = scalcoutINAV_LOC;
+					} else {
+						*plinkValid = scalcoutINAV_EXT;
+					}
 					db_post_events(pcalc,plinkValid,DBE_VALUE);
 				}
-				/* if outlink, get type of field we're connected to */
+				/* If this is the outlink, get the type of field it's connected to.  If it's connected
+				 * to a link field, and the outlink is not a CA link, complain, because this won't work.
+				 * Also, if .WAIT, then the link must be a CA link.
+				 */
 				if (plink == &pcalc->out) {
 					prpvt->outlink_field_type = dbCaGetLinkDBFtype(plink);
-					if (sCalcoutRecordDebug) {
-						printf("sCalcout:checkLinks: outlink type = %d\n",
-							prpvt->outlink_field_type);
-						if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
-							if ((pAddr->field_type >= DBF_INLINK) &&
-									(pAddr->field_type <= DBF_FWDLINK)) {
-								s = strchr(plink->value.pv_link.pvname, (int)' ') + 1;
-								if (strncmp(s,"CA",2))
-									printf("sCalcoutRecord:checkLinks:dblink to link field\n");
+					if (sCalcoutRecordDebug)
+						printf("sCalcout:checkLinks: outlink type = %d\n", prpvt->outlink_field_type);
+					if (!dbNameToAddr(plink->value.pv_link.pvname, pAddr)) {
+						if ((pAddr->field_type >= DBF_INLINK) &&
+								(pAddr->field_type <= DBF_FWDLINK)) {
+							if (!(plink->value.pv_link.pvlMask & pvlOptCA)) {
+								printf("sCalcoutRecord(%s):checkLinks:non-CA link to link field\n",
+									plink->value.pv_link.pvname);
 							}
 						}
+					}
+					if (pcalc->wait && !(plink->value.pv_link.pvlMask & pvlOptCA)) {
+						printf("sCalcoutRecord(%s):checkLinks: Can't wait with non-CA link attribute\n",
+							plink->value.pv_link.pvname);
 					}
 				}
 			} else {

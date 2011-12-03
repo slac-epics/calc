@@ -83,9 +83,13 @@
  * .24  06-26-03  rls  Port to 3.14; alarm() conflicts with alarm declaration in unistd.h
  *			(transformRecord.h->epicsTime.h->osdTime.h->unistd.h) when
  *			compiled with SUNPro.
+ * .25  01-16-07  tmm  v5.8 Added field COPT (calc option).  If COPT==0 ("Conditional"),
+ *                     calcs are not done if there is a corresponding input link, or if the
+ *                     corresponding value has changed.  If COPT==1 ("Always") calcs are done
+ *                     always.
  */
 
-#define VERSION 5.7
+#define VERSION 5.8
 
 #ifdef vxWorks
 #include <stddef.h>
@@ -124,6 +128,7 @@
 			  printf(FMT,V); } }
 #endif
 volatile int    transformRecordDebug = 0;
+epicsExportAddress(int, transformRecordDebug);
 
 #define DEBUG_LEVEL (transformRecordDebug + 10*ptran->tpro)
 
@@ -199,9 +204,9 @@ struct rpvtStruct {
 /* These must agree with the .dbd file. */
 #define INFIX_SIZE 40
 #define POSTFIX_SIZE 240
-#define ARG_MAX 16
-/* Fldnames should have ARG_MAX elements */
-static char Fldnames[ARG_MAX][2] =
+#define MAX_FIELDS 16
+/* Fldnames should have MAX_FIELDS elements */
+static char Fldnames[MAX_FIELDS][2] =
 {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P"};
 
 
@@ -241,7 +246,7 @@ init_record(transformRecord *ptran, int pass)
 	pclcbuf = ptran->clca;	/* infix expressions */
 	prpcbuf = ptran->rpca;	/* postfix expressions */
 	pcalcInvalid = &ptran->cav;
-	for (i = 0; i < ARG_MAX;
+	for (i = 0; i < MAX_FIELDS;
 	     i++, pinlink++, poutlink++, pvalue++, plvalue++, pInLinkValid++,
 		pOutLinkValid++, pclcbuf += INFIX_SIZE, prpcbuf += POSTFIX_SIZE,
 		pcalcInvalid++) {
@@ -334,7 +339,7 @@ process(transformRecord *ptran)
 	/* Process input links. */
 	plink = &ptran->inpa;
 	pval = &ptran->a;
-	for (i = 0; i < ARG_MAX; i++, plink++, pval++) {
+	for (i = 0; i < MAX_FIELDS; i++, plink++, pval++) {
 		if (plink->type != CONSTANT) {
 			Debug(15, "process: field %s has an input link.\n", Fldnames[i]);
 			status = dbGetLink(plink, DBR_DOUBLE, pval, NULL, NULL);
@@ -368,7 +373,7 @@ process(transformRecord *ptran)
 	plval = &ptran->la;
 	prpcbuf = (char *)ptran->rpca;
 	pclcbuf = (char *)ptran->clca;
-	for (i=0; i < ARG_MAX;
+	for (i=0; i < MAX_FIELDS;
 			i++, plink++, pval++, plval++,
 			prpcbuf+=POSTFIX_SIZE, pclcbuf+=INFIX_SIZE) {
 		no_inlink = plink->type == CONSTANT;
@@ -389,7 +394,9 @@ process(transformRecord *ptran)
 		Debug(15, "process: %s input link; \n", no_inlink ? "NO" : "");
 		Debug(15, "process: value is %s\n", new_value ? "NEW" : "OLD");
 		Debug(15, "process: expression is%s ok\n", postfix_ok ? " " : " NOT");
-		if (no_inlink && !new_value && postfix_ok) {
+		/* if (no_inlink && !new_value && postfix_ok) { */
+		if (((no_inlink && !new_value) || ptran->copt==transformCOPT_ALWAYS)
+				&& postfix_ok) {
 			Debug(15, "process: calculating for field %s\n", Fldnames[i]);
 			if (sCalcPerform(&ptran->a, 16, NULL,0, pval, NULL,0, prpcbuf)) {
 				recGblSetSevr(ptran, CALC_ALARM, INVALID_ALARM);
@@ -403,7 +410,7 @@ process(transformRecord *ptran)
 	/* Process output links. */
 	plink = &(ptran->outa);
 	pval = &ptran->a;
-	for (i = 0; i < ARG_MAX; i++, plink++, pval++) {
+	for (i = 0; i < MAX_FIELDS; i++, plink++, pval++) {
 		if (plink->type != CONSTANT) {
 			Debug(15, "process: field %s has an output link.\n", Fldnames[i]);
 			status = dbPutLink(plink, DBR_DOUBLE, pval, 1);
@@ -452,7 +459,7 @@ special(struct dbAddr *paddr, int after)
 	if (!after) {
 		plink = &ptran->inpa;
 		i = fieldIndex - transformRecordA;
-		if ((i >= 0) && (i < ARG_MAX)) {
+		if ((i >= 0) && (i < MAX_FIELDS)) {
 			/* user is attempting to change a value field */
 			plink += i;
 			if (plink->type != CONSTANT) return(1);
@@ -469,9 +476,9 @@ special(struct dbAddr *paddr, int after)
 			prpcbuf = (char *)ptran->rpca;
 			pcalcInvalid = &ptran->cav;
 			for (i = 0;
-			     i < ARG_MAX && paddr->pfield != (void *) pclcbuf;
+			     i < MAX_FIELDS && paddr->pfield != (void *) pclcbuf;
 			     i++, pclcbuf+=INFIX_SIZE, prpcbuf+=POSTFIX_SIZE, pcalcInvalid++);
-			if (i < ARG_MAX) {
+			if (i < MAX_FIELDS) {
 				status = 0; /* empty expression is valid */
 				if (*pclcbuf) {
 					/* make sure it's no longer than INFIX_SIZE chars */
@@ -493,7 +500,7 @@ special(struct dbAddr *paddr, int after)
 			/* Mark value field as "new", unless we caused the field to be written */
 			if (ptran->pact == 0) {
 				i = fieldIndex - transformRecordA;
-				if ((i >= 0) && (i < ARG_MAX)) {
+				if ((i >= 0) && (i < MAX_FIELDS)) {
 					/* user is changing a value field */
 					ptran->map |= (1<<i);	/* note new value (don't do calc) */
 				}
@@ -501,7 +508,7 @@ special(struct dbAddr *paddr, int after)
 
 			/* If user has changed a link, check it */
 			i = fieldIndex - transformRecordINPA;
-			if ((i >= 0) && (i < 2*ARG_MAX)) {
+			if ((i >= 0) && (i < 2*MAX_FIELDS)) {
 				Debug(15, "special: checking link, i=%d\n", i);
 				plink   = &ptran->inpa + i;
 				pvalue  = &ptran->a    + i;
@@ -585,7 +592,7 @@ monitor(transformRecord *ptran)
 	monitor_mask = DBE_VALUE|DBE_LOG;
 
 	/* check all value fields for changes */
-	for (i = 0, pnew = &ptran->a, pprev = &ptran->la; i < ARG_MAX; i++, pnew++, pprev++) {
+	for (i = 0, pnew = &ptran->a, pprev = &ptran->la; i < MAX_FIELDS; i++, pnew++, pprev++) {
 		if ((*pnew != *pprev) || (prpvt->firstCalcPosted == 0)) {
 			if (DEBUG_LEVEL >= 15) {
 				printf("transform(%s.%1s):posting value (new=%f,prev=%f)\n",
@@ -637,7 +644,7 @@ static void checkLinks(struct transformRecord *ptran)
     plink   = &ptran->inpa;
     plinkValid = &ptran->iav;
 
-    for (i=0; i<2*ARG_MAX; i++, plink++, plinkValid++) {
+    for (i=0; i<2*MAX_FIELDS; i++, plink++, plinkValid++) {
         if (plink->type == CA_LINK) {
             caLink = 1;
             stat = dbCaIsLinkConnected(plink);

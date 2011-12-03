@@ -8,6 +8,10 @@ menu(transformIVLA) {
         choice(transformIVLA_IGNORE,"Ignore error")
         choice(transformIVLA_DO_NOTHING,"Do Nothing")
 }
+menu(transformCOPT) {
+        choice(transformCOPT_CONDITIONAL,"Conditional")
+        choice(transformCOPT_ALWAYS,"Always")
+}
 recordtype(transform) {
 	include "dbCommon.dbd" 
 	field(VERS,DBF_FLOAT) {
@@ -28,6 +32,13 @@ recordtype(transform) {
 		interest(1)
 		menu(transformIVLA)
 		initial("0")
+	}
+	field(COPT,DBF_MENU) {
+		prompt("Calc option")
+		promptgroup(GUI_COMMON)
+		interest(1)
+		menu(transformCOPT)
+		initial("Conditional")
 	}
 	field(VAL,DBF_DOUBLE) {
 		prompt("Result")
@@ -397,81 +408,97 @@ recordtype(transform) {
 	}
 	field(A,DBF_DOUBLE) {
 		prompt("Value of A")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(B,DBF_DOUBLE) {
 		prompt("Value of B")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(C,DBF_DOUBLE) {
 		prompt("Value of C")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(D,DBF_DOUBLE) {
 		prompt("Value of D")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(E,DBF_DOUBLE) {
 		prompt("Value of E")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(F,DBF_DOUBLE) {
 		prompt("Value of F")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(G,DBF_DOUBLE) {
 		prompt("Value of G")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(H,DBF_DOUBLE) {
 		prompt("Value of H")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(I,DBF_DOUBLE) {
 		prompt("Value of I")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(J,DBF_DOUBLE) {
 		prompt("Value of J")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(K,DBF_DOUBLE) {
 		prompt("Value of K")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(L,DBF_DOUBLE) {
 		prompt("Value of L")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(M,DBF_DOUBLE) {
 		prompt("Value of M")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(N,DBF_DOUBLE) {
 		prompt("Value of N")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(O,DBF_DOUBLE) {
 		prompt("Value of O")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
 	field(P,DBF_DOUBLE) {
 		prompt("Value of P")
+		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		pp(TRUE)
 	}
