@@ -23,7 +23,7 @@ EPICS_MODULES=$(MODULES_SITE_TOP)
 # Need SSCAN module only to build the swait record (recDynLink library)
 # If you comment this definition out, the module will just decline to
 # build the swait record.
-SSCAN_MODULE_VERSION=sscan-R2-7-lcls1
+SSCAN_MODULE_VERSION=sscan-R2-8-1_1-0
 
 # ============================================================
 #  Module Location
