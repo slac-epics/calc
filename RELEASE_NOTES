@@ -23,8 +23,7 @@
 #
 #==============================================================
 #
-calc-R3-1_1-0:     Imported calc-3-1 from ANL.  Release Notes are
-                   here:
+calc-R2-9-lcls1:   New release from APS:  Read the APS Release Notes:
                    http://www.aps.anl.gov/bcda/synApps/calc/calcReleaseNotes.html
 
 calc-R2-7-lcls3:   Built only for EPICS R3-14-12; since the aSub
