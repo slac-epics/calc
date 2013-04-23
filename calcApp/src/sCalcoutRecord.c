@@ -61,7 +61,6 @@
 #include	<string.h>
 #include	<math.h>
 
-#include	<epicsVersion.h>
 #include	<alarm.h>
 #include	<dbDefs.h>
 #include	<dbAccess.h>
@@ -83,6 +82,13 @@
 #undef  GEN_SIZE_OFFSET
 #include	<menuIvoa.h>
 #include	<epicsExport.h>
+
+#include	<epicsVersion.h>
+#ifndef EPICS_VERSION_INT
+#define VERSION_INT(V,R,M,P) ( ((V)<<24) | ((R)<<16) | ((M)<<8) | (P))
+#define EPICS_VERSION_INT VERSION_INT(EPICS_VERSION, EPICS_REVISION, EPICS_MODIFICATION, EPICS_PATCH_LEVEL)
+#endif
+#define LT_EPICSBASE(V,R,M,P) (EPICS_VERSION_INT < VERSION_INT((V),(R),(M),(P)))
 
 /* Create RSET - Record Support Entry Table*/
 #define report NULL
@@ -178,7 +184,6 @@ epicsExportAddress(int, sCalcoutRecordDebug);
  * is allocated in init_record) are known to be of this length.
  */
 #define STRING_SIZE 40
-
 
 static long init_record(scalcoutRecord *pcalc, int pass)
 {
@@ -270,7 +275,7 @@ static long init_record(scalcoutRecord *pcalc, int pass)
 	}
 	db_post_events(pcalc,&pcalc->clcv,DBE_VALUE);
 
-	pcalc->oclv = sCalcPostfix(pcalc->ocal,(char *)pcalc->orpc,&error_number);
+	pcalc->oclv = sCalcPostfix(pcalc->ocal,pcalc->orpc,&error_number);
 	if (pcalc->oclv) {
 		recGblRecordError(S_db_badField,(void *)pcalc,
 			"scalcout: init_record: Illegal OCAL field");
@@ -299,14 +304,28 @@ static long process(scalcoutRecord *pcalc)
 	rpvtStruct   *prpvt = (rpvtStruct *)pcalc->rpvt;
 	short		doOutput = 0;
 	long		stat;
+	double		*pcurr, *pprev;
+	char		**pscurr, **psprev;
+	int			i;
 
 	if (sCalcoutRecordDebug) printf("sCalcoutRecord(%s):process: strs=%p, pact=%d\n",
 		pcalc->name, pcalc->strs, pcalc->pact);
 
 	if (!pcalc->pact) {
 		pcalc->pact = TRUE;
-		/* if some links are CA, check connections */
+		/* if any links are CA, check connections */
 		if (prpvt->caLinkStat != NO_CA_LINKS) checkLinks(pcalc);
+
+		/* save all input-field values, so we can post any changes */
+		for (i=0, pcurr=&pcalc->a, pprev=&pcalc->pa; i<MAX_FIELDS;
+				i++, pcurr++, pprev++) {
+			*pprev = *pcurr;
+		}
+		for (i=0, pscurr=pcalc->strs, psprev=&pcalc->paa; i<STRING_MAX_FIELDS;
+				i++, pscurr++, psprev++) {
+			strcpy(*psprev, *pscurr);
+		}
+
 		if (fetch_values(pcalc)==0) {
 			stat = sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
 					STRING_MAX_FIELDS, &pcalc->val, pcalc->sval, STRING_SIZE,
@@ -424,7 +443,7 @@ static long special(dbAddr	*paddr, int after)
 		return(0);
 
 	case scalcoutRecordOCAL:
-		pcalc->oclv = sCalcPostfix(pcalc->ocal, (char *)pcalc->orpc, &error_number);
+		pcalc->oclv = sCalcPostfix(pcalc->ocal, pcalc->orpc, &error_number);
 		if (pcalc->oclv) {
 			recGblRecordError(S_db_badField,(void *)pcalc,
 				"scalcout: special(): Illegal OCAL field");
@@ -653,7 +672,11 @@ static void checkAlarms(scalcoutRecord *pcalc)
 	unsigned short	hhsv, llsv, hsv, lsv;
 
 	if (pcalc->udf == TRUE) {
+#if LT_EPICSBASE(3,15,0,2)
 		recGblSetSevr(pcalc,UDF_ALARM,INVALID_ALARM);
+#else
+		recGblSetSevr(pcalc,UDF_ALARM,pcalc->udfs);
+#endif
 		return;
 	}
 	hihi = pcalc->hihi; 
@@ -712,7 +735,7 @@ static void execOutput(scalcoutRecord *pcalc)
 	case scalcoutDOPT_Use_OVAL:
 		if (sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
 				STRING_MAX_FIELDS, &pcalc->oval, pcalc->osv, STRING_SIZE,
-				(char *)pcalc->orpc)) {
+				pcalc->orpc)) {
 			pcalc->val = -1;
 			strcpy(pcalc->osv,"***ERROR***");
 			recGblSetSevr(pcalc,CALC_ALARM,INVALID_ALARM);
@@ -796,14 +819,12 @@ static void monitor(scalcoutRecord *pcalc)
 	for (i=0, pnew=&pcalc->a, pprev=&pcalc->pa; i<MAX_FIELDS;  i++, pnew++, pprev++) {
 		if ((*pnew != *pprev) || (monitor_mask&DBE_ALARM)) {
 			db_post_events(pcalc,pnew,monitor_mask|DBE_VALUE|DBE_LOG);
-			*pprev = *pnew;
 		}
 	}
 	for (i=0, psnew=pcalc->strs, psprev=&pcalc->paa; i<STRING_MAX_FIELDS;
 			i++, psnew++, psprev++) {
 		if (strcmp(*psnew, *psprev)) {
 			db_post_events(pcalc, *psnew, monitor_mask|DBE_VALUE|DBE_LOG);
-			strcpy(*psprev, *psnew);
 		}
 	}
 	/* Check OVAL field */
@@ -824,9 +845,6 @@ static int fetch_values(scalcoutRecord *pcalc)
 	short	field_type = 0;
 	dbAddr	Addr;
 	dbAddr	*pAddr = &Addr;
-#if 0
-	TS_STAMP	timeStamp;
-#endif
 
 	for (i=0, plink=&pcalc->inpa, pvalue=&pcalc->a; i<MAX_FIELDS; 
 			i++, plink++, pvalue++) {
@@ -875,16 +893,6 @@ static int fetch_values(scalcoutRecord *pcalc)
 					printf("fetch_values('%s'): dbGetLink(%d) DBR_STRING, returned %ld\n", pcalc->name, i, status);
 			}
 		}
-#if 0
-		if (!RTN_SUCCESS(status)) {
-			/* might be a time value */
-			status = dbGetLink(plink, DBR_TIME, &timeStamp, 0, 0); /* doesn't work */
-			if (!RTN_SUCCESS(status)) {
-				TSgetTimeStamp((int) pcalc->tse, (struct timespec *) &timeStamp); /* works */
-			}
-			tsStampToText(&timeStamp, TS_TEXT_MMDDYY, *psvalue);
-		}
-#endif
 		if (!RTN_SUCCESS(status)) {strcpy(*psvalue, "Huh?");}
 	}
 	return(0);
