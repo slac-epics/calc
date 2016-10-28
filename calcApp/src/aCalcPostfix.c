@@ -6,7 +6,7 @@
 * EPICS BASE is distributed subject to a Software License Agreement found
 * in file LICENSE that is included with this distribution. 
 \*************************************************************************/
-/* $Id: aCalcPostfix.c,v 1.1.1.3 2013/04/23 23:27:54 ernesto Exp $
+/* $Id: aCalcPostfix.c,v 1.19 2009-09-09 16:39:34 mooney Exp $
  * Subroutines used to convert an infix expression to a postfix expression
  *
  *      Original Author: Bob Dalesio, as postfix.c in EPICS base
@@ -123,6 +123,7 @@ static const ELEMENT operands[] = {
 {"CEIL",		9, 10,	0,		UNARY_OPERATOR,		CEIL},
 {"COS",			9, 10,	0,		UNARY_OPERATOR,		COS},
 {"COSH",		9, 10,	0,		UNARY_OPERATOR,		COSH},
+{"CUM",			9, 10,	0,		UNARY_OPERATOR,		CUM},
 {"D",			0, 0,	1,		OPERAND,			FETCH_D},
 {"DD",			0, 0,	1,		OPERAND,			FETCH_DD},
 {"DBL",			9, 10,	0,		UNARY_OPERATOR,		TO_DOUBLE},   /* convert to double */
@@ -377,7 +378,8 @@ static const char *opcodes[] = {
 	"AMIN",
 	"FITPOLY",
 	"FITMPOLY",
-	"ARANDOM"
+	"ARANDOM",
+	"CUM"
 };
 
 /*
@@ -471,7 +473,20 @@ epicsShareFunc long
 				*ps1 = *pel; ps1->code = A_ASTORE;
 			}
 
-			if (!handled) {
+			if (handled) {
+				/* Move operators of >= priority to the output, but stop before ps1 */
+				while ((pstacktop > ps1) && (pstacktop > stack) &&
+					   (pstacktop->in_stack_pri >= pel->in_coming_pri)) {
+					*pout++ = pstacktop->code;
+					if (aCalcPostfixDebug>=5) printf("put %s to postfix\n", opcodes[(int) pstacktop->code]);
+					if (pstacktop->type == VARARG_OPERATOR) {
+						*pout++ = 1 - pstacktop->runtime_effect;
+						if (aCalcPostfixDebug>=5) printf("put run-time effect %d to postfix\n", 1 - pstacktop->runtime_effect);
+					}
+					runtime_depth += pstacktop->runtime_effect;
+					pstacktop--;
+				}
+			} else {
 				/* convert FETCH_x or FETCH_xx (already posted to postfix string) */
 				if (pout > ppostfix && pout[-1] >= FETCH_A && pout[-1] <= FETCH_P) {
 					/* Convert fetch into a store on the stack */

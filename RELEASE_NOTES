@@ -23,6 +23,13 @@
 #
 #==============================================================
 #
+R3.3-0.1.0:		bhill, Oct 27, 2016
+	Merged in updates from github tag R3-3
+	Local changes include:
+		EDL files and install build support from Garth
+		RELEASE_NOTES
+		Local build support
+
 calc-R3-1_1-0:     Imported calc-3-1 from ANL.  Release Notes are
                    here:
                    http://www.aps.anl.gov/bcda/synApps/calc/calcReleaseNotes.html

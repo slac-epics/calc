@@ -260,8 +260,8 @@ long
 		return(-1);
 	}
 
-	if (aCalcPerformDebug>1) printf("aCalcPerform: freeListItemsAvail=%d of: %d\n",
-		freeListItemsAvail(flp), freeListItemsTotal(flp));
+	if (aCalcPerformDebug>1) printf("aCalcPerform: freeListItemsAvail=%ld of: %ld\n",
+		(long)freeListItemsAvail(flp), (long)freeListItemsTotal(flp));
 
 	*amask = 0; /* init bit mask that will record the array fields we wrote to. */
 
@@ -436,20 +436,21 @@ long
 			toDouble(ps);
 			ps1 = ps; DEC(ps);
 			toDouble(ps);
-			i = (int)(ps->d); DEC(ps);
-			if (num_dArgs > i) {
-    			p_dArg[i] = ps1->d;
+			i = myNINT(ps->d); DEC(ps);
+			if (i >= num_dArgs || i < 0) {
+				printf("aCalcPerform: fetch index, %d, out of range.\n", i);
 			} else {
-				/* caller didn't supply a large enough array */
-				;
+    			p_dArg[i] = ps1->d;
 			}
 			break;
 
 		case A_ASTORE:
 			ps1 = ps; DEC(ps);
 			toDouble(ps);
-			i = (int)(ps->d); DEC(ps);
-			if (num_aArgs > i) {
+			i = myNINT(ps->d); DEC(ps);
+			if (i >= num_aArgs || i < 0) {
+				printf("aCalcPerform: fetch index, %d, out of range.\n", i);
+			} else {
 				/* Careful.  It's possible the record has not allocated the array */
 				if (pp_aArg[i] == NULL) {
 					pp_aArg[i] = (double *)calloc(allocSize, sizeof(double));
@@ -462,9 +463,6 @@ long
 					}
 				}
 				*amask |= 1<<i;
-			} else {
-				/* caller didn't supply a large enough array */
-				;
 			}
 			break;
 
@@ -662,6 +660,7 @@ long
 		case ABS_VAL:
 		case UNARY_NEG:
 		case SQU_RT:
+		case CUM:
 		case EXP:
 		case LOG_10:
 		case LOG_E:
@@ -705,6 +704,12 @@ long
 						}
 					}
 					if (status)	printf("aCalcPerform: attempt to take sqrt of negative number\n");
+					break;
+				case CUM:
+					status = 0;
+					for (i=1; i<arraySize; i++) {
+							ps->a[i] += ps->a[i-1];
+					}
 					break;
 				case EXP: for (i=0; i<arraySize; i++) {ps->a[i] = exp(ps->a[i]);} break;
 				case LOG_10:
@@ -1190,8 +1195,13 @@ long
 				d = ps->a[0];
 				ps->a = NULL;
 			}
-			i = (int)(d >= 0 ? d+0.5 : 0);
-			ps->d = (i < num_dArgs) ? p_dArg[i] : 0;
+			i = myNINT(d);
+			if (i >= num_dArgs || i < 0) {
+				printf("aCalcPerform: fetch index, %d, out of range.\n", i);
+				ps->d = 0;
+			} else {
+				ps->d = p_dArg[i];
+			}
 			break;
 
 		case A_AFETCH:
@@ -1199,8 +1209,11 @@ long
 			d = ps->d;
 			toArray(ps,0);
 			ps->a[0] = '\0';
-			j = (int)(d >= 0 ? d+0.5 : 0);
-			if (j < num_aArgs) {
+			j = myNINT(d);
+			if (j >= num_aArgs || j < 0) {
+				printf("aCalcPerform: fetch index, %d, out of range.\n", j);
+			} else {
+				/* Careful.  It's possible the record has not allocated the array */
 				if (pp_aArg[j]) {
 					for (i=0; i<arraySize; i++) ps->a[i] = pp_aArg[j][i];
 				} else {
