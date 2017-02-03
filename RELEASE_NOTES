@@ -2,8 +2,8 @@ R3.6.1-0.1.0 : Importing new version from collaboration. ernesto (02/03/2017)
                Read release notes in the documentation directory as well.
                This release will not use the EPICS sequencer support f
                or our use at LCLS ACCL. So, we comment out this in the 
-               <TOP>/configure/RELEASE.local file.  However, we retain the
-               dependency on swait via the sscan module. We should confirm
+               <TOP>/configure/RELEASE.local file. We also no longer need
+               the dependency on sscan as confirmed with Tim Mooney
 
 R3.3-0.1.0:		bhill, Oct 27, 2016
 	Merged in updates from github tag R3-3
