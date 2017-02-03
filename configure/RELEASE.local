@@ -19,7 +19,8 @@
 # Don't set your version to anything such as "test" that
 # could match a directory name.
 # ==========================================================
-SSCAN_MODULE_VERSION	= R2.9-1.2.0
+SNCSEQ_MODULE_VERSION	= R2.2.4-1.0
+SSCAN_MODULE_VERSION	= R2.10.2-0.1
 
 # ==========================================================
 # Define module paths using pattern
@@ -27,11 +28,12 @@ SSCAN_MODULE_VERSION	= R2.9-1.2.0
 #  or
 # FOO = /Full/Path/To/Development/Version 
 # ==========================================================
-SSCAN=$(EPICS_MODULES)/sscan/$(SSCAN_MODULE_VERSION)
+SNCSEQ		= $(EPICS_MODULES)/seq/$(SNCSEQ_MODULE_VERSION)
+SSCAN		= $(EPICS_MODULES)/sscan/$(SSCAN_MODULE_VERSION)
 
 # Set EPICS_BASE last so it appears last in the DB, DBD, INCLUDE, and LIB search paths
-EPICS_BASE = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
+EPICS_BASE	= $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 
-# Check for undefined EPICS_BASE
+# Check for invalid EPICS_BASE
 -include $(TOP)/../../EPICS_BASE.check
 
