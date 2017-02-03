@@ -1,14 +1,111 @@
 <html>
 
 <head>
-<meta http-equiv="Content-Type"
-content="text/html; charset=iso-8859-1">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <title>calcReleaseNotes</title>
 </head>
 
 <body bgcolor="#FFFFFF">
 
 <h1 align="center">calc Release Notes</h1>
+
+<h2 align="center">Release 3-6</h2>
+<ul>
+<li>Restored yySseq.db, added yySseq_settings.req.
+</ul>
+
+<h2 align="center">Release 3-5</h2>
+<ul>
+
+<li>usercalcs now have a global enable, a usercalc-type enable, and individual
+enables.
+
+<li>calc.iocsh (in iocBoot/iocCalc) is now the preferred way to load usercalcs.
+
+<li>transformRecord: any nonwhitespace character is now permitted in a variable
+name
+
+<li>sseq_settings.req is deprecated.  Use sseqRecord_settings.req instead.
+
+</ul>
+
+<h2 align="center">Release 3-4-2-1</h2>
+<ul>
+<li>Not all userCalc displays use $(C); some use $(S).  Specify both
+</ul>
+
+<h2 align="center">Release 3-4-2</h2>
+<ul>
+<li>/userXXX10more_bare.adl specified macro C, but sseq displays need S
+</ul>
+
+<h2 align="center">Release 3-4-2</h2>
+
+<ul>
+<li>calc was adding editSeq.dbd to calcSupport.dbd even when SNCSEQ wasn't defined in RELEASE
+
+<li>sseq record: previously, sseq could segfault when .WAIT=="After&lt;n&gt;".
+Thanks to Matt Pearson for finding and characterizing the problem.
+</ul>
+
+<h2 align="center">Release 3-4-1</h2>
+
+<ul>
+
+<li>scalcout record: conversion from numeric expression result to string now
+honors the PREC field.
+
+<li>editSseq: new support for editing sseq and seq records at run time. 
+editSseq allows user to move a sseqRecord <i>line</i> up or down, or to swap two
+lines. (A <i>line</i> is the set (DLYn, DOLn, STRn, DOn, LNKn, WAITn).)
+
+<li>calc now requires the seq module by default.  If the seq module is not
+available, the definition of SNCSEQ must be commented out of configure/RELEASE,
+and calc will then build everything but editSseq.  This version of calc will
+build with either seq-2-1-18 or seq-2-2-1.
+
+<li>calc.dbd: new file, which is exactly the same as calcSupport.dbd.
+
+
+</ul>
+
+<h2 align="center">Release 3-4</h2>
+
+<ul>
+<li>acalcout record: new functions, better treatment of subranges:
+<ul>
+<li>IXMAX: index of largest array element
+<li>IXMIN: index of smallest array element
+<li>IXZ: index of first zero crossing in array
+<li>IXNZ: index of first nonzero array element
+<li>FITQ, FITMQ: fit to quadratic and optionally return fit coefficients. 
+(Replacements for deprecated FITPOLY, FITMPOLY.)
+<li>CAT: concatenate array subranges, or an array subrange and a double.
+
+<li>operators <code>^</code> and <code>**</code> reimplemented to permit
+noninteger exponents.
+
+
+<li>acalcout expressions now maintain array extents on the stack, so, for
+example, the expression <code>avg(aa[1,10])</code> really is an average of just
+<code>aa[1,10]</code>.  Previously, <code>avg(aa[1,10])</code> actually
+performed <code>sum(aa[1,10])/arraySize</code>.  Now it does
+<code>sum(aa[1,10])/10</code>.
+
+</ul>
+<li>scalcout and transform records: operators <code>^</code> and <code>**</code> reimplemented to permit
+noninteger exponents.
+
+<li>use Perl's ExtUtils::Command to concatenate .dbd files, instead of local
+cat.pl. Left old stuff in place, for now, in case someone has a problem with the
+new method.
+
+<li>Minor improvements in interp
+
+<li>When an scalcout fails to fetch a string field, give an informative error message.
+
+</ul>
+
 <h2 align="center">Release 3-3</h2>
 
 <ul>
@@ -20,6 +117,9 @@ variable names.
 
 <li>Make it easier to add 10 more usercalcs by writing, e.g.,
 userCalcouts10more.db
+
+<li>scalcout: fix for enum fields in R2-9 broke the code that checks if links are
+ok.  This is now fixed.
 
 </ul>
 

@@ -4,9 +4,9 @@
 <widget class="QMainWindow" name="MainWindow">
     <property name="geometry">
         <rect>
-            <x>919</x>
-            <y>40</y>
-            <width>160</width>
+            <x>1192</x>
+            <y>245</y>
+            <width>215</width>
             <height>420</height>
         </rect>
     </property>
@@ -14,6 +14,7 @@
         <string>
 
 QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
+QPushButton::menu-indicator {image: url(none.png); width: 0}
 
 </string>
     </property>
@@ -21,9 +22,9 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
         <widget class="caChoice" name="caChoice_0">
             <property name="geometry">
                 <rect>
-                    <x>2</x>
+                    <x>0</x>
                     <y>0</y>
-                    <width>160</width>
+                    <width>215</width>
                     <height>20</height>
                 </rect>
             </property>
@@ -56,23 +57,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>20</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>20</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=1</string>
+                <string>P=$(P),N=$(N1)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_1">
@@ -80,23 +81,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>40</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>40</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=2</string>
+                <string>P=$(P),N=$(N2)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_2">
@@ -104,23 +105,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>60</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>60</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=3</string>
+                <string>P=$(P),N=$(N3)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_3">
@@ -128,23 +129,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>80</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>80</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=4</string>
+                <string>P=$(P),N=$(N4)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_4">
@@ -152,23 +153,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>100</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>100</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=5</string>
+                <string>P=$(P),N=$(N5)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_5">
@@ -176,23 +177,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>120</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>120</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=6</string>
+                <string>P=$(P),N=$(N6)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_6">
@@ -200,23 +201,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>140</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>140</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=7</string>
+                <string>P=$(P),N=$(N7)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_7">
@@ -224,23 +225,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>160</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>160</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=8</string>
+                <string>P=$(P),N=$(N8)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_8">
@@ -248,23 +249,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>180</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>180</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=9</string>
+                <string>P=$(P),N=$(N9)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_9">
@@ -272,23 +273,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>200</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>200</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=10</string>
+                <string>P=$(P),N=$(N10)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_10">
@@ -296,23 +297,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>220</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>220</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=11</string>
+                <string>P=$(P),N=$(N11)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_11">
@@ -320,23 +321,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>240</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>240</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=12</string>
+                <string>P=$(P),N=$(N12)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_12">
@@ -344,23 +345,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>260</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>260</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=13</string>
+                <string>P=$(P),N=$(N13)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_13">
@@ -368,23 +369,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>280</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>280</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=14</string>
+                <string>P=$(P),N=$(N14)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_14">
@@ -392,23 +393,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>300</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>300</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=15</string>
+                <string>P=$(P),N=$(N15)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_15">
@@ -416,23 +417,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>320</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>320</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=16</string>
+                <string>P=$(P),N=$(N16)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_16">
@@ -440,23 +441,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>340</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>340</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=17</string>
+                <string>P=$(P),N=$(N17)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_17">
@@ -464,23 +465,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>360</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>360</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=18</string>
+                <string>P=$(P),N=$(N18)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_18">
@@ -488,23 +489,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>380</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>380</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=19</string>
+                <string>P=$(P),N=$(N19)</string>
             </property>
         </widget>
         <widget class="caInclude" name="caInclude_19">
@@ -512,23 +513,23 @@ QWidget#centralWidget {background: rgba(200, 200, 200, 255);}
                 <rect>
                     <x>0</x>
                     <y>400</y>
-                    <width>162</width>
-                    <height>22</height>
+                    <width>219</width>
+                    <height>24</height>
                 </rect>
             </property>
             <property name="geometry">
                 <rect>
                     <x>0</x>
                     <y>400</y>
-                    <width>160</width>
-                    <height>20</height>
+                    <width>217</width>
+                    <height>22</height>
                 </rect>
             </property>
             <property name="filename">
-                <string>userCalc_bare.adl</string>
+                <string>userCalcs_line.adl</string>
             </property>
             <property name="macro">
-                <string>P=$(P),N=20</string>
+                <string>P=$(P),N=$(N20)</string>
             </property>
         </widget>
         <zorder>caInclude_0</zorder>

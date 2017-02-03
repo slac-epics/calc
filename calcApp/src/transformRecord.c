@@ -114,13 +114,13 @@
 #include <callback.h>
 #include <taskwd.h>
 #include <epicsString.h>
+
+#include "epicsExport.h"
 #include "sCalcPostfix.h"
 #include "sCalcPostfixPvt.h"	/* define BAD_EXPRESSION */
-
 #define GEN_SIZE_OFFSET
 #include "transformRecord.h"
 #undef GEN_SIZE_OFFSET
-#include "epicsExport.h"
 
 #include <epicsVersion.h>
 #ifndef EPICS_VERSION_INT
@@ -272,7 +272,8 @@ static long getMacros(transformRecord *ptran)
 		if (transformRecordDebug >= 10) printf("pcomment[%d]='%s'\n", i, pcomment);
 		if (pcomment[0] == '$') {
 			macro->name[0] = pcomment[0];
-			for(j=1; j<COMMENT_SIZE-1 && isalnum((int)pcomment[j]); j++) {
+			/* for(j=1; j<COMMENT_SIZE-1 && isalnum((int)pcomment[j]); j++) { */
+			for(j=1; j<COMMENT_SIZE-1 && !isspace((int)pcomment[j]); j++) {
 				macro->name[j] = pcomment[j];
 			}
 			macro->name[j] = '\0';
@@ -587,7 +588,7 @@ process(transformRecord *ptran)
 		if (((no_inlink && !new_value) || ptran->copt==transformCOPT_ALWAYS)
 				&& postfix_ok) {
 			Debug(15, "process: calculating for field %s\n", Fldnames[i]);
-			if (sCalcPerform(&ptran->a, 16, NULL,0, pval, NULL,0, prpcbuf)) {
+			if (sCalcPerform(&ptran->a, 16, NULL,0, pval, NULL,0, prpcbuf, ptran->prec)) {
 				recGblSetSevr(ptran, CALC_ALARM, INVALID_ALARM);
 				ptran->udf = TRUE;
 			}

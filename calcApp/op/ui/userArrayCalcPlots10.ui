@@ -14,6 +14,7 @@
         <string>
 
 QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
+QPushButton::menu-indicator {image: url(none.png); width: 0}
 
 </string>
     </property>
@@ -22,14 +23,6 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
             <property name="frameShape">
                 <enum>QFrame::NoFrame</enum>
             </property>
-            <property name="geometry">
-                <rect>
-                    <x>0</x>
-                    <y>0</y>
-                    <width>200</width>
-                    <height>14</height>
-                </rect>
-            </property>
             <property name="foreground">
                 <color alpha="255">
                     <red>0</red>
@@ -45,27 +38,27 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="text">
-                <string>$(P)userArrayCalcs 1-5</string>
+                <string>$(P)userArrayCalcs $(N1)-$(N5)</string>
             </property>
             <property name="fontScaleMode">
-                <enum>ESimpleLabel::Height</enum>
+                <enum>ESimpleLabel::WidthAndHeight</enum>
             </property>
             <property name="alignment">
                 <set>Qt::AlignAbsolute|Qt::AlignHCenter|Qt::AlignVCenter</set>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>0</x>
+                    <y>0</y>
+                    <width>252</width>
+                    <height>14</height>
+                </rect>
             </property>
         </widget>
         <widget class="caLabel" name="caLabel_1">
             <property name="frameShape">
                 <enum>QFrame::NoFrame</enum>
             </property>
-            <property name="geometry">
-                <rect>
-                    <x>200</x>
-                    <y>0</y>
-                    <width>200</width>
-                    <height>14</height>
-                </rect>
-            </property>
             <property name="foreground">
                 <color alpha="255">
                     <red>0</red>
@@ -81,13 +74,21 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="text">
-                <string>$(P)userArrayCalcs 6-10</string>
+                <string>$(P)userArrayCalcs $(N6)-$(N10)</string>
             </property>
             <property name="fontScaleMode">
-                <enum>ESimpleLabel::Height</enum>
+                <enum>ESimpleLabel::WidthAndHeight</enum>
             </property>
             <property name="alignment">
                 <set>Qt::AlignAbsolute|Qt::AlignHCenter|Qt::AlignVCenter</set>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>200</x>
+                    <y>0</y>
+                    <width>260</width>
+                    <height>14</height>
+                </rect>
             </property>
         </widget>
         <widget class="caCartesianPlot" name="caCartesianPlot_0">
@@ -142,7 +143,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc1.NUSE</string>
+                <string>$(P)userArrayCalc$(N1).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -152,7 +153,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc1.AVAL</string>
+                <string>;$(P)userArrayCalc$(N1).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -222,7 +223,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc6.NUSE</string>
+                <string>$(P)userArrayCalc$(N6).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -232,7 +233,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc6.AVAL</string>
+                <string>;$(P)userArrayCalc$(N6).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -302,7 +303,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc2.NUSE</string>
+                <string>$(P)userArrayCalc$(N2).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -312,7 +313,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc2.AVAL</string>
+                <string>;$(P)userArrayCalc$(N2).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -382,7 +383,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc7.NUSE</string>
+                <string>$(P)userArrayCalc$(N7).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -392,7 +393,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc7.AVAL</string>
+                <string>;$(P)userArrayCalc$(N7).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -462,7 +463,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc3.NUSE</string>
+                <string>$(P)userArrayCalc$(N3).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -472,7 +473,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc3.AVAL</string>
+                <string>;$(P)userArrayCalc$(N3).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -542,7 +543,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc8.NUSE</string>
+                <string>$(P)userArrayCalc$(N8).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -552,7 +553,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc8.AVAL</string>
+                <string>;$(P)userArrayCalc$(N8).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -622,7 +623,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc5.NUSE</string>
+                <string>$(P)userArrayCalc$(N5).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -632,7 +633,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc5.AVAL</string>
+                <string>;$(P)userArrayCalc$(N5).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -702,7 +703,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc10.NUSE</string>
+                <string>$(P)userArrayCalc$(N10).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -712,7 +713,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc10.AVAL</string>
+                <string>;$(P)userArrayCalc$(N10).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -782,7 +783,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc4.NUSE</string>
+                <string>$(P)userArrayCalc$(N4).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -792,7 +793,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc4.AVAL</string>
+                <string>;$(P)userArrayCalc$(N4).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -862,7 +863,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 <enum>caCartesianPlot::Triangle</enum>
             </property>
             <property name="countNumOrChannel">
-                <string>$(P)userArrayCalc9.NUSE</string>
+                <string>$(P)userArrayCalc$(N9).NUSE</string>
             </property>
             <property name="color_1">
                 <color alpha="255">
@@ -872,7 +873,7 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                 </color>
             </property>
             <property name="channels_1">
-                <string>;$(P)userArrayCalc9.AVAL</string>
+                <string>;$(P)userArrayCalc$(N9).AVAL</string>
             </property>
             <property name="XaxisScaling">
                 <enum>caCartesianPlot::Auto</enum>
@@ -909,10 +910,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc6.CALC</string>
+                    <string>$(P)userArrayCalc$(N6).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -960,10 +961,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc1.CALC</string>
+                    <string>$(P)userArrayCalc$(N1).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1021,10 +1022,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc7.CALC</string>
+                    <string>$(P)userArrayCalc$(N7).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1072,10 +1073,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc2.CALC</string>
+                    <string>$(P)userArrayCalc$(N2).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1133,10 +1134,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc8.CALC</string>
+                    <string>$(P)userArrayCalc$(N8).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1184,10 +1185,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc3.CALC</string>
+                    <string>$(P)userArrayCalc$(N3).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1245,10 +1246,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc9.CALC</string>
+                    <string>$(P)userArrayCalc$(N9).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1296,10 +1297,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc4.CALC</string>
+                    <string>$(P)userArrayCalc$(N4).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1357,10 +1358,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc10.CALC</string>
+                    <string>$(P)userArrayCalc$(N10).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">
@@ -1408,10 +1409,10 @@ QWidget#centralWidget {background: rgba(255, 255, 255, 255);}
                     </rect>
                 </property>
                 <property name="fontScaleMode">
-                    <enum>caLineEdit::Height</enum>
+                    <enum>caLineEdit::WidthAndHeight</enum>
                 </property>
                 <property name="channel">
-                    <string>$(P)userArrayCalc5.CALC</string>
+                    <string>$(P)userArrayCalc$(N5).CALC</string>
                 </property>
                 <property name="foreground">
                     <color alpha="255">

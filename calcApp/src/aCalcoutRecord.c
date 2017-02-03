@@ -45,15 +45,15 @@
 #include	<special.h>
 #include	<callback.h>
 #include	<taskwd.h>
-#include	"aCalcPostfix.h"
+#include	<epicsVersion.h>
 
+#include	<epicsExport.h>
+#include	"aCalcPostfix.h"
 #define GEN_SIZE_OFFSET
 #include	"aCalcoutRecord.h"
 #undef  GEN_SIZE_OFFSET
 #include	<menuIvoa.h>
-#include	<epicsExport.h>
 
-#include	<epicsVersion.h>
 #ifndef EPICS_VERSION_INT
 #define VERSION_INT(V,R,M,P) ( ((V)<<24) | ((R)<<16) | ((M)<<8) | (P))
 #define EPICS_VERSION_INT VERSION_INT(EPICS_VERSION, EPICS_REVISION, EPICS_MODIFICATION, EPICS_PATCH_LEVEL)
@@ -1023,7 +1023,7 @@ static int fetch_values(acalcoutRecord *pcalc)
 			for (j=0; j<numElements; j++) pcalc->paa[j] = (*pavalue)[j];
 			/* get new value */
 			nRequest = acalcGetNumElements( pcalc );
-			status = dbGetLinkValue(plink, DBR_DOUBLE, *pavalue, 0, &nRequest);
+			status = dbGetLink(plink, DBR_DOUBLE, *pavalue, 0, &nRequest);
 			if (!RTN_SUCCESS(status)) return(status);
 			if (nRequest<numElements) {
 				for (j=nRequest; j<numElements; j++) (*pavalue)[j] = 0;

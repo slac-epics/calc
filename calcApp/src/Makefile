@@ -18,6 +18,10 @@ endif
 
 # <name>.dbd will be created from <name>Include.dbd, if it exists
 DBD_INSTALLS += calcSupport.dbd
+DBD_INSTALLS += calc.dbd
+ifdef SNCSEQ
+	DBD += editSseq.dbd
+endif
 
 #=============================
 
@@ -35,6 +39,10 @@ calc_SRCS += subAve.c
 ifdef SSCAN
 	calc_SRCS += swaitRecord.c
 	calc_LIBS += sscan
+endif
+ifdef SNCSEQ
+	calc_SRCS += editSseq.st
+	calc_LIBS += seq pv
 endif
 
 calc_SRCS += interp.c
@@ -68,10 +76,18 @@ swaitRecord$(OBJ): $(COMMON_DIR)/swaitRecord.h
 # mustn't do that.  Otherwise the ioc directory would inherit an expanded copy
 # of base.dbd from each support module.)
 
+# calc.dbd is exactly the same as calcSupport.dbd
+
+dbdlist = ../calcSupport_LOCAL.dbd
 ifdef SSCAN
-calcSupport.dbd: ../calcSupport_LOCAL.dbd ../calcSupport_withSSCAN.dbd
-	perl ../cat.pl ../calcSupport_LOCAL.dbd ../calcSupport_withSSCAN.dbd calcSupport.dbd
-else
-calcSupport.dbd: ../calcSupport_LOCAL.dbd
-	perl ../cat.pl ../calcSupport_LOCAL.dbd calcSupport.dbd
+dbdlist += ../calcSupport_withSSCAN.dbd
 endif
+ifdef SNCSEQ
+dbdlist += ../calcSupport_withSNCSEQ.dbd
+endif
+
+calcSupport.dbd: $(dbdlist)
+	$(PERL) -MExtUtils::Command -e cat $^ > $@
+
+calc.dbd: $(dbdlist)
+	$(PERL) -MExtUtils::Command -e cat $^ > $@

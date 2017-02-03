@@ -75,13 +75,14 @@
 #include	<callback.h>
 #include	<taskwd.h>
 #include	<epicsString.h>	/* for epicsStrSnPrintEscaped() */
-#include	"sCalcPostfix.h"
+#include	<epicsStdio.h> /* for epicsSnprintf() */
 
+#include	<epicsExport.h>
+#include	"sCalcPostfix.h"
 #define GEN_SIZE_OFFSET
 #include	"sCalcoutRecord.h"
 #undef  GEN_SIZE_OFFSET
 #include	<menuIvoa.h>
-#include	<epicsExport.h>
 
 #include	<epicsVersion.h>
 #ifndef EPICS_VERSION_INT
@@ -184,7 +185,10 @@ epicsExportAddress(int, sCalcoutRecordDebug);
  * is allocated in init_record) are known to be of this length.
  */
 #define STRING_SIZE 40
-
+
+static char sFldnames[MAX_FIELDS][3] =
+{"AA","BB","CC","DD","EE","FF","GG","HH","II","JJ","KK","LL"};
+
 static long init_record(scalcoutRecord *pcalc, int pass)
 {
 	DBLINK *plink;
@@ -329,7 +333,7 @@ static long process(scalcoutRecord *pcalc)
 		if (fetch_values(pcalc)==0) {
 			stat = sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
 					STRING_MAX_FIELDS, &pcalc->val, pcalc->sval, STRING_SIZE,
-					pcalc->rpcl);
+					pcalc->rpcl, pcalc->prec);
 			if (stat) {
 				pcalc->val = -1;
 				strcpy(pcalc->sval,"***ERROR***");
@@ -735,7 +739,7 @@ static void execOutput(scalcoutRecord *pcalc)
 	case scalcoutDOPT_Use_OVAL:
 		if (sCalcPerform(&pcalc->a, MAX_FIELDS, (char **)(pcalc->strs),
 				STRING_MAX_FIELDS, &pcalc->oval, pcalc->osv, STRING_SIZE,
-				pcalc->orpc)) {
+				pcalc->orpc, pcalc->prec)) {
 			pcalc->val = -1;
 			strcpy(pcalc->osv,"***ERROR***");
 			recGblSetSevr(pcalc,CALC_ALARM,INVALID_ALARM);
@@ -879,8 +883,11 @@ static int fetch_values(scalcoutRecord *pcalc)
 			if (((field_type==DBR_CHAR) || (field_type==DBR_UCHAR)) && nelm>1) {
 				for (j=0; j<STRING_SIZE; j++) (*psvalue)[j]='\0';
 				status = dbGetLink(plink, field_type, tmpstr, 0, &nelm);
-				if (sCalcoutRecordDebug > 1)
-					printf("fetch_values('%s'): dbGetLink(%d) field_type %d, returned %ld\n", pcalc->name, i, field_type, status);
+				if (sCalcoutRecordDebug > 1) {
+					printf("fetch_values('%s'): dbGetLink(%d) link type '%d'\n", pcalc->name, i, plink->type);
+					printf("fetch_values('%s'): dbGetLink(%d) field_type %d, returned %lx\n", pcalc->name, i, field_type, status);
+					printf("fetch_values('%s'): dbGetLink(%d) yielded '%s'\n", pcalc->name, i, tmpstr);
+				}
 				if (nelm>0) {
 					epicsStrSnPrintEscaped(*psvalue, STRING_SIZE-1, tmpstr, nelm);
 					(*psvalue)[STRING_SIZE-1] = '\0';
@@ -893,7 +900,9 @@ static int fetch_values(scalcoutRecord *pcalc)
 					printf("fetch_values('%s'): dbGetLink(%d) DBR_STRING, returned %ld\n", pcalc->name, i, status);
 			}
 		}
-		if (!RTN_SUCCESS(status)) {strcpy(*psvalue, "Huh?");}
+		if (!RTN_SUCCESS(status)) {
+			epicsSnprintf(*psvalue, STRING_SIZE-1, "%s:fetch(%s) failed", pcalc->name, sFldnames[i]);
+		}
 	}
 	return(0);
 }
