@@ -23,6 +23,9 @@
 #
 #==============================================================
 #
+R3.3-0.1.1:		bhill, 1/14/2017
+	Bumped up to sscan/R2.9-0.2.0
+
 R3.3-0.1.0:		bhill, Oct 27, 2016
 	Merged in updates from github tag R3-3
 	Local changes include:
