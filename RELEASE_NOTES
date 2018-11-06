@@ -1,6 +1,9 @@
 #
 #  Name: RELEASE_NOTES
 #
+R3.7-1.0.0 :	2018-11-05 Bruce Hill
+	Importing R3-7 from collaboration and merging w/ R3.6.1-1.branch
+
 R3.6.1-1.0.1	Bruce Hill, 2017-04-22
 	Fixed annoying "../../display given more than once" errors re CONFIG_EDL
 
