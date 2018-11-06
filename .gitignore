@@ -1,5 +1,6 @@
 *~
 O.*
+*.log
 *.swp
 *BAK.adl
 bin/
@@ -12,6 +13,7 @@ templates/
 cdCommands
 envPaths
 dllPath.bat
+RELEASE_SITE
 auto_settings.sav*
 auto_positions.sav*
 

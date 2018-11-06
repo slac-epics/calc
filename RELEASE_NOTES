@@ -1,5 +1,12 @@
-R3.7-0.0.1 :	2018-11-05 Bruce Hill
-	Importing R3-7 from collaboration and merging w/ R3.6.1-0.branch
+#
+#  Name: RELEASE_NOTES
+#
+R3.6.1-1.0.1	Bruce Hill, 2017-04-22
+	Fixed annoying "../../display given more than once" errors re CONFIG_EDL
+
+R3.6.1-1.0.0	Bruce Hill, 2017-02-03
+	Merged in updates from R3.3-0.1.1 which should probably have been
+	done from an R3.3-1.branch as it includes edl files and build support from Garth
 
 R3.6.1-0.1.0 : Importing new version from collaboration. ernesto (02/03/2017)
                Read release notes in the documentation directory as well.
@@ -8,11 +15,13 @@ R3.6.1-0.1.0 : Importing new version from collaboration. ernesto (02/03/2017)
                <TOP>/configure/RELEASE.local file. We also no longer need
                the dependency on sscan as confirmed with Tim Mooney
 
+R3.3-0.1.1:		bhill, 1/14/2017
+	Bumped up to sscan/R2.9-0.2.0
+
 R3.3-0.1.0:		bhill, Oct 27, 2016
 	Merged in updates from github tag R3-3
 	Local changes include:
 		EDL files and install build support from Garth
 		RELEASE_NOTES
 		Local build support
-
 
