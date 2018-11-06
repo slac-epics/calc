@@ -1,3 +1,6 @@
+R3.7-0.0.1 :	2018-11-05 Bruce Hill
+	Importing R3-7 from collaboration and merging w/ R3.6.1-0.branch
+
 R3.6.1-0.1.0 : Importing new version from collaboration. ernesto (02/03/2017)
                Read release notes in the documentation directory as well.
                This release will not use the EPICS sequencer support f
