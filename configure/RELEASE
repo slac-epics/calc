@@ -10,7 +10,7 @@
 # Need SSCAN module only to build the swait record (recDynLink library)
 # If you comment this definition out, the module will just decline to
 # build the swait record.
-SSCAN=$(EPICS_MODULES)/sscan/R2.10.2-1.0.0
+#SSCAN=$(SUPPORT)/sscan-2-9
 
 # Need SNCSEQ module only to build editSseq.st.  If you comment this
 # definition out, the module will just decline to build editSseq.st.
